@@ -1,0 +1,138 @@
+﻿@{
+    ViewData["Title"] = "Yard Dashboard";
+}
+
+
+<div class="app-container">
+    <header class="top-nav">
+        <div class="logo">REEFER <span style="color: var(--info);">CORE</span> v2.0</div>
+        <div class="system-stats">
+            <div class="stat-pill">MQ: <span id="mq-status">CONNECTED</span></div>
+            <div class="stat-pill">LIVE: <span id="clock">00:00:00</span></div>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h6>UNIT MONITORING</h6>
+                <div class="detail-card">
+                    <small style="color: #8b949e;">SELECTED ID</small>
+                    <h3 id="sel-id" style="margin: 5px 0;">SELECT UNIT</h3>
+                    <div class="temp-display" id="main-temp">--.-°C</div>
+                    <div class="d-flex justify-content-between mt-2 small">
+                        <span id="unit-status">READY</span>
+                        <span class="text-muted" id="unit-pos">Bay: --</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="content-area">
+            <div class="summary-grid">
+                <div class="s-card">
+                    <small>TOTAL UNITS</small>
+                    <div class="val" id="total-units">512</div>
+                </div>
+                <div class="s-card" style="border-left-color: var(--danger);">
+                    <small>ALARMS</small>
+                    <div class="val text-danger" id="active-alarms">00</div>
+                </div>
+                <div class="s-card" style="border-left-color: var(--success);">
+                    <small>ONLINE</small>
+                    <div class="val text-success" id="online-units">00</div>
+                </div>
+                <div class="s-card" style="border-left-color: var(--warning);">
+                    <small>YARD LOAD</small>
+                    <div class="val">1.4 MW</div>
+                </div>
+            </div>
+            <div id="yardGrid" class="yard-grid-wrapper"></div>
+        </main>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/yardHub")
+            .withAutomaticReconnect() 
+            .build();
+
+        connection.on("UpdateContainer", function (id, temp, status) {
+            const box = document.querySelector(`[data-id='${id}']`);
+            if (box) {
+                // Class name handle for Alert conflict
+                let sClass = status.toLowerCase();
+                if(sClass === 'alert') sClass = 'c-alert';
+                
+                box.className = 'c ' + sClass;
+                
+                if (document.getElementById('sel-id').innerText === id) {
+                    updateUI(id, temp, status);
+                }
+                updateCounters();
+            }
+        });
+
+        connection.start().catch(err => console.error(err));
+
+        // Generate Grid
+        const gridContainer = document.getElementById('yardGrid');
+        for (let i = 1; i <= 20; i++) {
+            gridContainer.innerHTML += `
+            <div class="yard-block">
+                <div class="block-head"><span>BLOCK AD-0${i}</span></div>
+                <div class="mini-grid">
+                    <div class="l"></div><div class="l">A</div><div class="l">B</div><div class="l">C</div><div class="l">D</div><div class="l">E</div><div class="l">F</div>
+                    ${generateRows(i)}
+                </div>
+            </div>`;
+        }
+
+        function generateRows(b) {
+            let html = '';
+            for (let r = 5; r >= 1; r--) {
+                html += `<div class="l">${r}</div>`;
+                for (let c = 1; c <= 6; c++) {
+                    html += `<div class="c empty" data-id="CONT-${b}${r}${c}"></div>`;
+                }
+            }
+            return html;
+        }
+
+        function updateCounters() {
+            document.getElementById('active-alarms').innerText = document.querySelectorAll('.c.alarm').length.toString().padStart(2, '0');
+            document.getElementById('online-units').innerText = document.querySelectorAll('.c.conn').length;
+        }
+
+        function updateUI(id, temp, status) {
+            document.getElementById('sel-id').innerText = id;
+            document.getElementById('main-temp').innerText = temp + "°C";
+            const st = document.getElementById('unit-status');
+            st.innerText = status;
+            st.className = (status === 'ALARM' ? 'text-danger' : (status === 'ALERT' ? 'text-warning' : 'text-success')) + ' fw-bold';
+        }
+
+        document.addEventListener('click', function (e) {
+            const box = e.target.closest('.c');
+            if (box) {
+                document.querySelectorAll('.c').forEach(el => el.classList.remove('highlight'));
+                box.classList.add('highlight');
+                
+                let id = box.getAttribute('data-id');
+                let status = "EMPTY";
+                if(box.classList.contains('conn')) status = "STABLE";
+                if(box.classList.contains('alarm')) status = "ALARM";
+                if(box.classList.contains('c-alert')) status = "ALERT";
+                
+                let temp = status === "EMPTY" ? "--.-" : (Math.random() * 10 - 20).toFixed(1);
+                updateUI(id, temp, status);
+            }
+        });
+
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
+    </script>
+}

@@ -1,0 +1,74 @@
+﻿<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="detail-card">
+                <h5 class="text-info mb-4">Add New Yard Block</h5>
+                <div class="mb-3">
+                    <label class="small text-white">Block Name (e.g. AD-01)</label>
+                    <input type="text" id="blockName" class="form-control bg-dark text-white border-secondary" placeholder="AD-01">
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <label class="small text-white">Rows (Depth)</label>
+                        <input type="number" id="rowInput" class="form-control bg-dark text-white border-secondary" value="5">
+                    </div>
+                    <div class="col-6">
+                        <label class="small text-white">Cols (Width)</label>
+                        <input type="number" id="colInput" class="form-control bg-dark text-white border-secondary" value="6">
+                    </div>
+                </div>
+                <button class="btn btn-info w-100 mt-4" onclick="previewGrid()">Preview Stack</button>
+                <button class="btn btn-success w-100 mt-2" onclick="saveConfiguration()">Save to Yard</button>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="detail-card h-100">
+                <h5 class="text-white mb-3">Live Preview</h5>
+                <div id="previewContainer" class="yard-block mx-auto" style="max-width: 400px;">
+                    </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function previewGrid() {
+        const rows = document.getElementById('rowInput').value;
+        const cols = document.getElementById('colInput').value;
+        const name = document.getElementById('blockName').value || "NEW-BLOCK";
+        const container = document.getElementById('previewContainer');
+
+        let gridHtml = `
+            <div class="block-head">
+                <span>BLOCK ${name}</span>
+                <span class="badge bg-info text-dark">${rows}x${cols}</span>
+            </div>
+            <div class="mini-grid" style="grid-template-columns: 20px repeat(${cols}, 1fr);">
+                <div class="l"></div>`;
+        
+        // Header (A, B, C...)
+        for(let c=0; c<cols; c++) {
+            gridHtml += `<div class="l">${String.fromCharCode(65 + c)}</div>`;
+        }
+
+        // Rows
+        for (let r = rows; r >= 1; r--) {
+            gridHtml += `<div class="l">${r}</div>`;
+            for (let col = 1; col <= cols; col++) {
+                gridHtml += `<div class="c empty" style="height: 18px;"></div>`;
+            }
+        }
+
+        container.innerHTML = gridHtml;
+    }
+
+    function saveConfiguration() {
+        // Yahan aap AJAX/Fetch ke zariye backend pe Rows/Cols bhejenge
+        alert("Configuration saved! Now DB will tell Dashboard to render " + 
+              document.getElementById('rowInput').value + " rows.");
+    }
+    
+    // Initial Preview
+    previewGrid();
+</script>
