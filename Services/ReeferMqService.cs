@@ -28,10 +28,18 @@ public class ReeferMqService : BackgroundService
                 using IConnection connection = await _factory.CreateConnectionAsync();
                 await connection.StartAsync();
                 using ISession session = await connection.CreateSessionAsync();
-                using IDestination destination = await session.GetQueueAsync(_queueName);
+                IDestination destination;
+                try
+                {
+                    destination = await session.GetQueueAsync("YardDataQueue");
+                }
+                catch
+                {
+                    destination = await session.GetQueueAsync(_queueName);
+                }
                 using IMessageConsumer consumer = await session.CreateConsumerAsync(destination);
 
-                _logger.LogInformation("ReeferMqService: Connected successfully to ActiveMQ queue '{Queue}'. Consuming live messages...", _queueName);
+                _logger.LogInformation("YardMqService: Connected successfully to ActiveMQ queue. Consuming live messages...");
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
@@ -39,13 +47,24 @@ public class ReeferMqService : BackgroundService
                     if (message is ITextMessage textMessage)
                     {
                         var data = textMessage.Text.Split('|');
-                        if (data.Length >= 3)
+                        if (data.Length >= 6)
                         {
                             string id = data[0];
-                            string temp = data[1];
+                            string type = data[1];
+                            string status = data[2];
+                            string line = data[3];
+                            string weight = data[4];
+                            string category = data[5];
+
+                            await _hubContext.Clients.All.SendAsync("UpdateContainer", id, type, status, line, weight, category, cancellationToken: stoppingToken);
+                        }
+                        else if (data.Length >= 3)
+                        {
+                            string id = data[0];
+                            string type = data[1];
                             string status = data[2];
 
-                            await _hubContext.Clients.All.SendAsync("UpdateContainer", id, temp, status, cancellationToken: stoppingToken);
+                            await _hubContext.Clients.All.SendAsync("UpdateContainer", id, type, status, "MAERSK", "22,400 KG", "General Cargo", cancellationToken: stoppingToken);
                         }
                     }
                 }

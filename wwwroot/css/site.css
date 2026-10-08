@@ -47,13 +47,13 @@
 }
 
 [data-theme="light"] {
-    --bg-base: #f1f5f9;
+    --bg-base: #f8fafc;
     --bg-surface: #ffffff;
     --bg-card: #ffffff;
-    --bg-card-hover: #f8fafc;
+    --bg-card-hover: #f1f5f9;
     --bg-card-active: #e2e8f0;
-    --bg-input: #f8fafc;
-    --bg-glass: rgba(255, 255, 255, 0.92);
+    --bg-input: #f1f5f9;
+    --bg-glass: rgba(255, 255, 255, 0.95);
 
     --border-subtle: #e2e8f0;
     --border-medium: #cbd5e1;
@@ -61,12 +61,12 @@
     --border-accent: #0284c7;
 
     --text-primary: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #94a3b8;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
     --text-highlight: #020617;
 
     --color-cyan: #0284c7;
-    --color-cyan-glow: rgba(2, 132, 199, 0.3);
+    --color-cyan-glow: rgba(2, 132, 199, 0.25);
     --color-success: #059669;
     --color-success-bg: rgba(5, 150, 105, 0.12);
     --color-success-glow: rgba(5, 150, 105, 0.25);
@@ -76,11 +76,11 @@
     --color-warning: #d97706;
     --color-warning-bg: rgba(217, 119, 6, 0.12);
     --color-warning-glow: rgba(217, 119, 6, 0.25);
-    --color-empty: #f8fafc;
+    --color-empty: #f1f5f9;
     --color-empty-border: #cbd5e1;
 
-    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.06);
-    --shadow-pop: 0 12px 28px rgba(0, 0, 0, 0.1);
+    --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.04);
+    --shadow-pop: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
 /* 2. BASE STYLES */
@@ -911,3 +911,498 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
+
+/* ==========================================================================
+   10. CONTAINER DETAILS MODAL & YARD POSITION MANAGEMENT
+   ========================================================================== */
+.yard-viewport-container {
+    position: relative;
+    width: 100%;
+}
+
+.yard-grid-wrapper {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 18px;
+}
+
+/* Selected container highlight on yard (No zoom scale, just clear border & shadow) */
+.c.highlight {
+    outline: 2px solid var(--color-cyan) !important;
+    box-shadow: 0 0 16px var(--color-cyan) !important;
+    z-index: 10 !important;
+}
+
+.yard-block.highlighted-row {
+    border-color: var(--color-cyan) !important;
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.2) !important;
+}
+
+/* ==========================================================================
+   11. ROW POSITION MANAGEMENT & REORDERING
+   ========================================================================== */
+.row-drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 1.15rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s, background 0.2s;
+    user-select: none;
+}
+
+.row-drag-handle:hover {
+    color: var(--color-cyan);
+    background: var(--bg-surface);
+}
+
+.row-drag-handle:active {
+    cursor: grabbing;
+}
+
+.yard-block.is-dragging-row {
+    opacity: 0.35;
+    border: 2px dashed var(--color-cyan) !important;
+}
+
+.yard-block.row-drag-over {
+    border: 2px solid var(--color-cyan) !important;
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.35) !important;
+}
+
+.row-order-badge {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+}
+
+.row-action-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    padding: 2px 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.row-action-btn:hover {
+    color: var(--color-cyan);
+    background: var(--bg-surface);
+}
+
+/* ==========================================================================
+   12. CONTAINER DRAG-AND-DROP (AFTER SELECTION / UNLOCK)
+   ========================================================================== */
+.c[draggable="true"] {
+    cursor: grab;
+}
+
+.c[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+.c.is-dragging-container {
+    opacity: 0.4;
+    transform: scale(0.9);
+}
+
+.c.drop-target-hover {
+    outline: 2px dashed var(--color-cyan) !important;
+    background: rgba(0, 210, 255, 0.35) !important;
+    z-index: 20 !important;
+}
+
+/* ==========================================================================
+   13. CONTAINER CLASSIFICATION & TABLE STYLES
+   ========================================================================== */
+.c.dry, .c.conn, .c.loaded {
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.c.reefer {
+    background: linear-gradient(135deg, #059669, #10b981);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.c.hazmat, .c.alarm {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.c.customs, .c.c-alert {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.c.cleared {
+    background: linear-gradient(135deg, #38bdf8, #0284c7);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.c.empty {
+    border: 1px dashed var(--color-empty-border);
+    background-color: var(--color-empty);
+    box-shadow: none;
+}
+
+.shipping-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    background: var(--bg-input);
+    border: 1px solid var(--border-medium);
+    color: var(--text-highlight);
+}
+
+/* Table data grid in modal & sidebar */
+.spec-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.spec-cell {
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+.spec-cell-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.spec-cell-val {
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+/* Modals Custom Styling */
+.modal-custom {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+}
+
+.modal-custom .modal-header {
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 16px 20px;
+}
+
+.modal-custom .modal-footer {
+    border-top: 1px solid var(--border-subtle);
+    padding: 14px 20px;
+}
+
+.modal-backdrop.show {
+    opacity: 0.7;
+    backdrop-filter: blur(3px);
+}
+
+/* ==========================================================================
+   14. THEME CONTRAST & DUAL-THEME POLISH (DARK & LIGHT MODE)
+   ========================================================================== */
+/* Themed Card Inner Boxes (replaces hardcoded bg-dark/bg-black) */
+.card-subbox {
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    color: var(--text-primary);
+}
+
+.detail-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-card);
+    transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+/* Themed Select Inputs (replaces hardcoded bg-black text-white) */
+.theme-select {
+    background-color: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-medium) !important;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.theme-select:focus {
+    border-color: var(--border-accent) !important;
+    box-shadow: 0 0 0 2px var(--color-cyan-glow) !important;
+}
+
+.theme-select option {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Themed Badges */
+.badge-custom {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    display: inline-block;
+}
+
+/* Invert Bootstrap Close button in Dark mode, normal in Light mode */
+[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+[data-theme="light"] .btn-close {
+    filter: none;
+}
+
+/* Polished Light Theme Specifics */
+[data-theme="light"] body {
+    background-color: #f8fafc;
+}
+
+[data-theme="light"] .top-nav {
+    background-color: #ffffff;
+    border-bottom-color: #e2e8f0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .sidebar {
+    background-color: #ffffff;
+    border-right-color: #e2e8f0;
+}
+
+[data-theme="light"] .sidebar-header {
+    background-color: #ffffff;
+    border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .inspector-card {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .position-matrix-card {
+    background-color: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .pos-item {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .pos-breadcrumb {
+    background-color: #f1f5f9;
+    color: #334155;
+    border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .telemetry-card {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .telemetry-row {
+    border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .spec-cell {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .spec-cell-val {
+    color: #0f172a;
+}
+
+[data-theme="light"] .summary-card {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .summary-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .filter-toolbar {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .filter-btn {
+    background-color: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #475569;
+}
+
+[data-theme="light"] .filter-btn:hover {
+    background-color: #e2e8f0;
+    color: #0f172a;
+}
+
+[data-theme="light"] .filter-btn.active {
+    background-color: #0284c7;
+    color: #ffffff;
+    border-color: #0284c7;
+}
+
+[data-theme="light"] .row-chip {
+    background-color: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #475569;
+}
+
+[data-theme="light"] .row-chip:hover {
+    background-color: #e2e8f0;
+    color: #0f172a;
+}
+
+[data-theme="light"] .row-chip.active {
+    background-color: #e0f2fe;
+    border-color: #0284c7;
+    color: #0284c7;
+}
+
+[data-theme="light"] .yard-block {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .yard-block:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .block-head {
+    border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .block-head-title {
+    color: #0f172a;
+}
+
+[data-theme="light"] .badge-stack {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #0284c7;
+}
+
+[data-theme="light"] .row-order-badge {
+    background-color: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #64748b;
+}
+
+[data-theme="light"] .row-drag-handle {
+    color: #94a3b8;
+}
+
+[data-theme="light"] .row-drag-handle:hover {
+    color: #0284c7;
+    background-color: #f1f5f9;
+}
+
+[data-theme="light"] .row-action-btn:hover {
+    color: #0284c7;
+    background-color: #f1f5f9;
+}
+
+[data-theme="light"] .l {
+    color: #64748b;
+}
+
+[data-theme="light"] .c.empty {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+[data-theme="light"] .c.empty:hover {
+    background-color: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+[data-theme="light"] .modal-custom {
+    background-color: #ffffff;
+    color: #0f172a;
+    border-color: #cbd5e1;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.16);
+}
+
+[data-theme="light"] .modal-custom .modal-header {
+    border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .modal-custom .modal-footer {
+    border-top-color: #e2e8f0;
+}
+
+[data-theme="light"] .card-subbox {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .theme-select {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .theme-select option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .shipping-badge {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+[data-theme="light"] .search-input {
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+[data-theme="light"] .mq-indicator {
+    background-color: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #475569;
+}
+
+
+

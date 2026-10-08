@@ -10,7 +10,10 @@ public class MqTestProducer : BackgroundService
     private readonly IHubContext<YardHub> _hubContext;
     private readonly ILogger<MqTestProducer> _logger;
     private readonly string[] _columns = { "A", "B", "C", "D", "E", "F" };
-    private readonly string[] _statuses = { "CONN", "CONN", "CONN", "ALARM", "ALERT" };
+    private readonly string[] _types = { "40HC Dry", "20GP Standard", "40GP Standard", "40RF Reefer", "20TK Tank ISO", "40OT Open Top" };
+    private readonly string[] _lines = { "MAERSK", "MSC", "CMA CGM", "COSCO", "HAPAG-LLOYD", "ONE", "EVERGREEN" };
+    private readonly string[] _statuses = { "LOADED", "LOADED", "CLEARED", "INSPECT", "HAZMAT" };
+    private readonly string[] _categories = { "Electronics & Tech", "Consumer Goods", "Auto Parts", "Chemicals IMO-3", "Perishable Cold Chain", "Heavy Machinery", "Textiles" };
 
     public MqTestProducer(IHubContext<YardHub> hubContext, ILogger<MqTestProducer> logger)
     {
@@ -31,10 +34,10 @@ public class MqTestProducer : BackgroundService
                 using IConnection conn = await _factory.CreateConnectionAsync();
                 await conn.StartAsync();
                 using ISession session = await conn.CreateSessionAsync();
-                IDestination dest = await session.GetQueueAsync("ReeferDataQueue");
+                IDestination dest = await session.GetQueueAsync("YardDataQueue");
                 using IMessageProducer producer = await session.CreateProducerAsync(dest);
 
-                _logger.LogInformation("MqTestProducer: Successfully connected to ActiveMQ broker. Publishing telemetry for Stack AB...");
+                _logger.LogInformation("MqTestProducer: Successfully connected to ActiveMQ broker. Publishing telemetry for Yard Stack AB...");
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
@@ -45,11 +48,13 @@ public class MqTestProducer : BackgroundService
                     string col = _columns[rnd.Next(_columns.Length)];
                     string id = $"CONT-AB{row:D2}-{tier}{col}";
 
-                    // Temperature between -25.0°C and -15.0°C
-                    string temp = (rnd.NextDouble() * (-15 - -25) + -25).ToString("0.0");
+                    string type = _types[rnd.Next(_types.Length)];
                     string status = _statuses[rnd.Next(_statuses.Length)];
+                    string line = _lines[rnd.Next(_lines.Length)];
+                    string weight = $"{rnd.Next(16000, 31500):N0} KG";
+                    string category = _categories[rnd.Next(_categories.Length)];
 
-                    var msg = session.CreateTextMessage($"{id}|{temp}|{status}");
+                    var msg = session.CreateTextMessage($"{id}|{type}|{status}|{line}|{weight}|{category}");
                     await producer.SendAsync(msg);
 
                     await Task.Delay(1500, stoppingToken);
@@ -68,10 +73,13 @@ public class MqTestProducer : BackgroundService
                     string col = _columns[rnd.Next(_columns.Length)];
                     string id = $"CONT-AB{row:D2}-{tier}{col}";
 
-                    string temp = (rnd.NextDouble() * (-15 - -25) + -25).ToString("0.0");
+                    string type = _types[rnd.Next(_types.Length)];
                     string status = _statuses[rnd.Next(_statuses.Length)];
+                    string line = _lines[rnd.Next(_lines.Length)];
+                    string weight = $"{rnd.Next(16000, 31500):N0} KG";
+                    string category = _categories[rnd.Next(_categories.Length)];
 
-                    await _hubContext.Clients.All.SendAsync("UpdateContainer", id, temp, status, cancellationToken: stoppingToken);
+                    await _hubContext.Clients.All.SendAsync("UpdateContainer", id, type, status, line, weight, category, cancellationToken: stoppingToken);
 
                     await Task.Delay(1500, stoppingToken);
                     retryAttempts++;
