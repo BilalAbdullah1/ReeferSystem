@@ -1183,6 +1183,104 @@ body {
     filter: none;
 }
 
+/* ==========================================================================
+   HIGH-CONTRAST DUAL-THEME TABLE SYSTEM (Dark Mode & Light Mode)
+   ========================================================================== */
+.table {
+    --bs-table-bg: transparent !important;
+    --bs-table-color: var(--text-primary) !important;
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.02) !important;
+    --bs-table-striped-color: var(--text-primary) !important;
+    --bs-table-active-bg: rgba(0, 210, 255, 0.08) !important;
+    --bs-table-active-color: var(--text-highlight) !important;
+    --bs-table-hover-bg: rgba(255, 255, 255, 0.04) !important;
+    --bs-table-hover-color: var(--text-highlight) !important;
+    --bs-table-border-color: var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-subtle) !important;
+    background-color: transparent !important;
+}
+
+.table > :not(caption) > * > * {
+    background-color: transparent !important;
+    color: inherit;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--border-subtle) !important;
+}
+
+.table thead th {
+    background-color: var(--bg-surface) !important;
+    color: var(--text-muted) !important;
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.8px !important;
+    text-transform: uppercase !important;
+    border-bottom: 2px solid var(--border-medium) !important;
+    padding: 12px 14px !important;
+    white-space: nowrap;
+}
+
+.table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.table tbody td {
+    padding: 12px 14px !important;
+    font-size: 0.86rem !important;
+    color: var(--text-primary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    vertical-align: middle;
+}
+
+.table-hover tbody tr:hover td {
+    background-color: var(--bg-card-hover) !important;
+    color: var(--text-highlight) !important;
+}
+
+.table .shipping-badge {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--color-cyan);
+}
+
+/* Light Theme Overrides for Table */
+[data-theme="light"] .table {
+    --bs-table-bg: transparent !important;
+    --bs-table-color: #0f172a !important;
+    --bs-table-striped-bg: #f8fafc !important;
+    --bs-table-hover-bg: #f1f5f9 !important;
+    --bs-table-border-color: #e2e8f0 !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .table thead th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+}
+
+[data-theme="light"] .table tbody td {
+    color: #0f172a !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .table-hover tbody tr:hover td {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .table .shipping-badge {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #0284c7;
+}
+
 /* Polished Light Theme Specifics */
 [data-theme="light"] body {
     background-color: #f8fafc;
@@ -1404,5 +1502,81 @@ body {
     color: #475569;
 }
 
+/* ==========================================================================
+   YARD LOADER OVERLAY
+   ========================================================================== */
+.yard-loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(8, 11, 17, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
 
+[data-theme="light"] .yard-loader-overlay {
+    background: rgba(248, 250, 252, 0.92);
+}
 
+.yard-loader-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loader-content-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-medium);
+    border-radius: 16px;
+    padding: 32px 36px;
+    width: 440px;
+    max-width: 90vw;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    text-align: center;
+}
+
+.loader-spinner-wrapper {
+    position: relative;
+    width: 68px;
+    height: 68px;
+    margin: 0 auto 20px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loader-box-icon {
+    font-size: 2rem;
+    color: var(--color-cyan);
+    animation: pulseBox 1.5s infinite ease-in-out;
+}
+
+.loader-spinner-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: var(--color-cyan);
+    border-right-color: var(--color-cyan);
+    animation: spinRing 1s linear infinite;
+}
+
+@keyframes spinRing {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes pulseBox {
+    0%, 100% { transform: scale(0.92); opacity: 0.85; }
+    50% { transform: scale(1.08); opacity: 1; }
+}

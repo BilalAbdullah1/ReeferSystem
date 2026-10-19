@@ -2,7 +2,29 @@
     ViewData["Title"] = "Container Terminal Yard Operations";
 }
 
-<div class="app-wrapper">
+<div class="app-wrapper position-relative">
+    <!-- Full-Screen Interactive Yard Loader Overlay -->
+    <div id="yardLoaderOverlay" class="yard-loader-overlay">
+        <div class="loader-content-box">
+            <div class="loader-spinner-wrapper">
+                <div class="loader-box-icon">
+                    <i class="bi bi-boxes"></i>
+                </div>
+                <div class="loader-spinner-ring"></div>
+            </div>
+            <h5 class="loader-title fw-bold mb-1" id="loaderTitle" style="color: var(--text-highlight);">Loading Yard Stack & Rows...</h5>
+            <p class="loader-subtitle text-muted small mb-3" id="loaderSubtitle">The track is working according to yard &bull; Synchronizing Stack Rows & Tiers via <code>Pkg_Front_End</code></p>
+            
+            <div class="progress loader-progress mb-2" style="height: 6px; background: rgba(255,255,255,0.08);">
+                <div id="loaderProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 35%;"></div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center small text-muted" style="font-size: 0.74rem;">
+                <span id="loaderStepText"><i class="bi bi-layers-half me-1 text-info"></i>Track is working according to yard</span>
+                <span id="loaderCountText" class="badge-custom text-info">22,674 Yard Containers</span>
+            </div>
+        </div>
+    </div>
+
     <!-- 1. Top Navigation Bar -->
     <header class="top-nav">
         <div class="brand-section">
@@ -13,8 +35,13 @@
                 <div class="brand-title">CONTAINER <span style="color: var(--color-cyan);">YARD</span> TOS</div>
                 <div class="brand-tag">Terminal Operating System & Inventory Tracking</div>
             </div>
-            <div class="brand-zone-badge">
-                <i class="bi bi-geo-alt-fill me-1"></i>STACK: AB (14 ROWS)
+            <!-- Dynamic Yard Selector -->
+            <div class="d-flex align-items-center gap-2 brand-zone-badge py-1 px-2">
+                <i class="bi bi-geo-alt-fill text-info"></i>
+                <span class="small fw-bold text-muted">YARD:</span>
+                <select id="activeYardSelect" class="form-select form-select-sm theme-select py-0" style="width: auto; min-width: 140px; font-weight: 700;" onchange="switchActiveYard(this.value)">
+                    <!-- Populated dynamically: STACK-AB, STACK-CD, etc. -->
+                </select>
             </div>
         </div>
 
@@ -22,18 +49,29 @@
             <div class="search-box">
                 <i class="bi bi-search"></i>
                 <input type="text" id="containerSearch" class="search-input" 
-                       placeholder="Search Container No (e.g. GLDU5661160, ECMU, CMAU) or Line / Row..." 
+                       placeholder="Search Container No (e.g. GLDU5661160, ECMU, CMAU) or Position / Type..." 
                        oninput="handleSearch(this.value)">
             </div>
         </div>
 
         <div class="nav-actions">
+            <!-- Sync with Oracle Button -->
+            <button class="btn btn-sm btn-outline-info" onclick="forceReloadContainers()" title="Fetch fresh container inventory from Oracle Pkg_Front_End">
+                <i class="bi bi-arrow-clockwise me-1"></i>Sync Oracle
+            </button>
+            <!-- Link to Second Screen (Yard Slots Setup) -->
+            <a href="/Home/YardConfiguration" class="btn btn-sm btn-outline-info" title="Manage Yard Slots Architecture in Oracle DB">
+                <i class="bi bi-diagram-3-fill me-1"></i> Yard Slots Setup
+            </a>
             <div class="mq-indicator" id="brokerPill">
                 <span class="status-dot pulsing" id="brokerDot"></span>
                 <span id="brokerText">BROKER: CONNECTED</span>
             </div>
+            <button class="btn btn-sm btn-outline-warning" onclick="triggerTestActiveMq()" title="Dispatch live telemetry message into ActiveMQ broker queue 'YardDataQueue' to verify real-time SignalR sync">
+                <i class="bi bi-broadcast me-1"></i>Test ActiveMQ
+            </button>
             <div class="clock-display" id="clock">00:00:00</div>
-            <button class="btn btn-sm btn-outline-secondary" onclick="resetRowSequence()" title="Reset yard row order to default (01 to 14)">
+            <button class="btn btn-sm btn-outline-secondary" onclick="resetRowSequence()" title="Reset yard row order to default">
                 <i class="bi bi-arrow-clockwise me-1"></i>Reset Rows
             </button>
             <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Switch theme">
@@ -45,12 +83,12 @@
 
     <!-- 2. Main Workspace -->
     <div class="main-layout">
-        <!-- Sidebar: Clean Container Information Panel (NO 3D) -->
+        <!-- Sidebar: Container Details Panel (Oracle Ctr2 & Cv2 Schema) -->
         <aside class="sidebar" id="sidebarInspector">
             <div class="sidebar-header">
                 <div class="sidebar-title">
                     <span><i class="bi bi-info-circle-fill me-1 text-info"></i> Container Details</span>
-                    <span class="badge bg-secondary" id="sidebarRowBadge">ROW AB-01</span>
+                    <span class="badge bg-secondary" id="sidebarRowBadge">NO SELECTION</span>
                 </div>
             </div>
 
@@ -60,12 +98,12 @@
                     <div class="inspector-header">
                         <div>
                             <div class="d-flex align-items-center gap-2 mb-1">
-                                <span class="shipping-badge" id="sideLineBadge">CMA</span>
-                                <span class="badge-custom" id="sideIsoBadge">22G1 (20ft DR)</span>
+                                <span class="badge-custom" id="sideIsoBadge">--</span>
+                                <span class="badge-custom text-info" id="sideLocationType">YARD</span>
                             </div>
-                            <h3 class="unit-id-title" id="sideContainerNo">GLDU5661160</h3>
+                            <h3 class="unit-id-title" id="sideContainerNo">SELECT A UNIT</h3>
                         </div>
-                        <span class="unit-status-pill conn" id="sideStatusPill">DELIVERED</span>
+                        <span class="unit-status-pill empty" id="sideStatusPill">VACANT</span>
                     </div>
 
                     <!-- Current Position in Yard -->
@@ -75,72 +113,72 @@
                         </div>
                         <div class="position-grid">
                             <div class="pos-item">
-                                <div class="pos-item-label">STACK</div>
-                                <div class="pos-item-value" id="sideStack">AB</div>
+                                <div class="pos-item-label">YARD</div>
+                                <div class="pos-item-value" id="sideStack">--</div>
                             </div>
                             <div class="pos-item">
                                 <div class="pos-item-label">ROW</div>
-                                <div class="pos-item-value" id="sideRow">AB-01</div>
+                                <div class="pos-item-value" id="sideRow">--</div>
                             </div>
                             <div class="pos-item">
                                 <div class="pos-item-label">TIER</div>
-                                <div class="pos-item-value" id="sideTier">Tier 6</div>
+                                <div class="pos-item-value" id="sideTier">--</div>
                             </div>
                             <div class="pos-item">
                                 <div class="pos-item-label">COLUMN</div>
-                                <div class="pos-item-value" id="sideCol">Col A</div>
+                                <div class="pos-item-value" id="sideCol">--</div>
                             </div>
                         </div>
                         <div class="pos-breadcrumb">
-                            <span id="sideBreadcrumb">STACK: AB &gt; ROW: 01 &gt; TIER: 6 &gt; COL: A</span>
+                            <span id="sideBreadcrumb">Click any container or empty slot in the yard grid</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Sir's Table Specifications (Clean Grid) -->
+                <!-- Oracle Ctr2 & Cv2 Schema Specifications -->
                 <div class="telemetry-card">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted small fw-bold text-uppercase">Manifest Data (From Table)</span>
-                        <span class="badge bg-primary text-white" id="sideCategoryBadge">COMMUNITY</span>
+                        <span class="text-muted small fw-bold text-uppercase">Oracle Schema (Ctr2 & Cv2)</span>
+                        <span class="badge bg-primary text-white" id="sideCategoryBadge">--</span>
                     </div>
 
                     <div class="spec-grid">
                         <div class="spec-cell">
                             <div class="spec-cell-label">Tare Weight</div>
-                            <div class="spec-cell-val" id="sideWeight">2,180 KG</div>
+                            <div class="spec-cell-val" id="sideTareWeight">-- KG</div>
                         </div>
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Ticket / EIR No</div>
-                            <div class="spec-cell-val" id="sideTicket">1782</div>
+                            <div class="spec-cell-label">Safe Weight</div>
+                            <div class="spec-cell-val" id="sideSafeWeight">-- KG</div>
+                        </div>
+                        <div class="spec-cell">
+                            <div class="spec-cell-label">Gross Weight</div>
+                            <div class="spec-cell-val text-warning" id="sideGrossWeight">-- KG</div>
                         </div>
                         <div class="spec-cell">
                             <div class="spec-cell-label">Height / Size</div>
-                            <div class="spec-cell-val" id="sideHeight">20ft • 8'6"</div>
+                            <div class="spec-cell-val" id="sideHeight">--</div>
                         </div>
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Vehicle / Sub-Loc</div>
-                            <div class="spec-cell-val" id="sideVehicle">OUT</div>
+                            <div class="spec-cell-label">Vessel / Voyage</div>
+                            <div class="spec-cell-val text-info" id="sideVesselVoyage" style="font-size: 0.75rem;">--</div>
                         </div>
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Gate-In Date</div>
-                            <div class="spec-cell-val" id="sideGateIn" style="font-size: 0.75rem;">2026-06-01 15:52</div>
-                        </div>
-                        <div class="spec-cell">
-                            <div class="spec-cell-label">Operator</div>
-                            <div class="spec-cell-val" id="sideOperator">SHOAIB</div>
+                            <div class="spec-cell-label">Yard-In Time</div>
+                            <div class="spec-cell-val" id="sideYardIn" style="font-size: 0.75rem;">--</div>
                         </div>
                     </div>
 
                     <div class="mt-2 p-2 rounded card-subbox" style="font-size: 0.75rem;">
-                        <span class="text-muted">Condition / Remarks:</span>
-                        <strong class="d-block" style="color: var(--text-highlight);" id="sideRemarks">NORMAL (INSPECTED)</strong>
+                        <span class="text-muted">Current Position Code:</span>
+                        <strong class="d-block font-monospace text-info" id="sidePositionCode">--</strong>
                     </div>
                 </div>
 
                 <!-- Direct Actions -->
                 <div class="d-flex flex-column gap-2">
                     <button class="btn btn-info w-100 fw-bold" onclick="openSelectedContainerModal()">
-                        <i class="bi bi-window-stack me-1"></i> Open Full Info & Move Modal
+                        <i class="bi bi-window-stack me-1"></i> Open Info & Move Modal
                     </button>
                     <button class="btn btn-sm btn-outline-warning w-100" onclick="enableYardDragging()">
                         <i class="bi bi-hand-index-thumb me-1"></i> Drag Move Container on Yard
@@ -154,18 +192,18 @@
             <!-- 3. Yard Summary KPI Grid -->
             <div class="summary-grid">
                 <div class="summary-card accent-cyan">
-                    <div class="summary-label">STACK AB CAPACITY</div>
-                    <div class="summary-value" id="kpiCapacity">504</div>
-                    <div class="summary-subtext">14 Rows × 36 Slots</div>
+                    <div class="summary-label" id="kpiCapacityLabel">YARD CAPACITY</div>
+                    <div class="summary-value" id="kpiCapacity">0</div>
+                    <div class="summary-subtext" id="kpiCapacitySub">Total Slots</div>
                 </div>
                 <div class="summary-card accent-success">
                     <div class="summary-label">OCCUPIED CONTAINERS</div>
-                    <div class="summary-value text-success" id="kpiOccupied">00</div>
+                    <div class="summary-value text-success" id="kpiOccupied">0</div>
                     <div class="summary-subtext">Active In-Yard Units</div>
                 </div>
                 <div class="summary-card accent-cyan">
                     <div class="summary-label">AVAILABLE EMPTY SLOTS</div>
-                    <div class="summary-value text-info" id="kpiEmpty">504</div>
+                    <div class="summary-value text-info" id="kpiEmpty">0</div>
                     <div class="summary-subtext">Vacant Stacking Space</div>
                 </div>
                 <div class="summary-card accent-warning">
@@ -175,8 +213,8 @@
                 </div>
                 <div class="summary-card accent-danger">
                     <div class="summary-label">HOLD / SPECIAL</div>
-                    <div class="summary-value text-danger" id="kpiSpecial">00</div>
-                    <div class="summary-subtext">Customs & Remarks</div>
+                    <div class="summary-value text-danger" id="kpiSpecial">0</div>
+                    <div class="summary-subtext">Customs & Special Status</div>
                 </div>
             </div>
 
@@ -184,16 +222,16 @@
             <div class="filter-toolbar">
                 <div class="filter-pills">
                     <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">
-                        <i class="bi bi-grid-fill me-1"></i> All Containers (<span id="filterAllCount">504</span>)
+                        <i class="bi bi-grid-fill me-1"></i> All (<span id="filterAllCount">0</span>)
                     </button>
                     <button class="filter-btn" data-filter="20" onclick="setFilter('20', this)">
-                        <span class="badge bg-secondary me-1">20ft</span> 20ft Units
+                        <span class="badge bg-secondary me-1">20ft</span> 20ft
                     </button>
                     <button class="filter-btn" data-filter="40" onclick="setFilter('40', this)">
-                        <span class="badge bg-primary me-1">40ft</span> 40ft Units
+                        <span class="badge bg-primary me-1">40ft</span> 40ft
                     </button>
                     <button class="filter-btn" data-filter="yard" onclick="setFilter('yard', this)">
-                        <span class="status-dot bg-warning me-1"></span> In-Yard (QFS)
+                        <span class="status-dot bg-warning me-1"></span> In-Yard
                     </button>
                     <button class="filter-btn" data-filter="delivered" onclick="setFilter('delivered', this)">
                         <span class="status-dot bg-success me-1"></span> Delivered
@@ -203,26 +241,25 @@
                     </button>
                 </div>
 
-                <!-- Row Quick Jumper Chips (1 to 14) -->
+                <!-- Row Quick Jumper Chips -->
                 <div class="row-nav-scroller" id="rowJumperBar">
                     <span class="text-muted small fw-bold me-1">ROW:</span>
-                    <!-- Populated dynamically: AB-01 to AB-14 -->
                 </div>
             </div>
 
-            <!-- Hint Bar -->
-            <div class="d-flex align-items-center justify-content-between px-2 text-muted" style="font-size: 0.74rem;">
+            <!-- Terminal Stacking Rule Guidance Banner -->
+            <div class="d-flex align-items-center justify-content-between px-3 py-2 rounded card-subbox mb-2" style="font-size: 0.76rem;">
                 <div>
-                    <i class="bi bi-info-circle text-info me-1"></i>
-                    Click any container to <strong>open its Information Modal</strong>. Drag row headers to <strong>reorder rows</strong>. Once selected, move its position via the modal or drag it.
+                    <i class="bi bi-shield-check text-success me-1"></i>
+                    <strong>Physical Stacking Active:</strong> Containers must stack from base (Tier 1) upwards. Containers cannot float in the air, and only empty slots can receive a container (no overwriting/swapping).
                 </div>
                 <span class="badge-custom text-info" id="dragStatusBadge">Drag & Drop Ready</span>
             </div>
 
-            <!-- 5. 14 Rows of Stack AB Grid -->
+            <!-- 5. Yard Grid -->
             <div class="yard-viewport-container" id="yardViewport">
                 <div id="yardGrid" class="yard-grid-wrapper">
-                    <!-- Dynamically generated: 14 Rows x 36 slots -->
+                    <!-- Dynamically generated rows & slots -->
                 </div>
             </div>
         </main>
@@ -230,7 +267,7 @@
 </div>
 
 <!-- =========================================================================
-     CONTAINER INFORMATION & POSITION MOVE MODAL (Opens on click)
+     CONTAINER INFORMATION & POSITION MOVE MODAL (Base-to-Top Enforced)
      ========================================================================= -->
 <div class="modal fade" id="containerInfoModal" tabindex="-1" aria-labelledby="containerInfoModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -243,12 +280,12 @@
                     </div>
                     <div>
                         <div class="d-flex align-items-center gap-2">
-                            <h4 class="modal-title fw-bold mb-0" style="color: var(--text-highlight);" id="modalContainerNo">GLDU5661160</h4>
-                            <span class="shipping-badge fs-6" id="modalLineBadge">CMA</span>
+                            <h4 class="modal-title fw-bold mb-0" style="color: var(--text-highlight);" id="modalContainerNo">--</h4>
+                            <span class="badge-custom" id="modalTypeBadge">--</span>
                             <span class="unit-status-pill conn" id="modalStatusBadge">DELIVERED</span>
                         </div>
                         <small class="text-muted" id="modalLocationSubtitle">
-                            Currently in Stack AB &bull; Row AB-01 &bull; Tier 6 &bull; Column A
+                            Current Location
                         </small>
                     </div>
                 </div>
@@ -257,125 +294,121 @@
 
             <!-- Modal Body -->
             <div class="modal-body p-4">
-                <!-- 1. Manifest Data from Table -->
+                <!-- 1. Oracle Ctr2 & Cv2 Specifications -->
                 <h6 class="text-info text-uppercase fw-bold small mb-2">
-                    <i class="bi bi-table me-1"></i> Container Specifications (From Manifest Table)
+                    <i class="bi bi-database-check me-1"></i> Oracle Specifications (Ctr2 & Cv2 Table Data)
                 </h6>
                 <div class="row g-2 mb-4">
                     <div class="col-md-3 col-6">
                         <div class="spec-cell">
-                            <div class="spec-cell-label">ISO Size / Type</div>
-                            <div class="spec-cell-val" id="modalIsoCode">22G1 (20ft DR)</div>
+                            <div class="spec-cell-label">Size / Type</div>
+                            <div class="spec-cell-val" id="modalIsoCode">--</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-6">
                         <div class="spec-cell">
                             <div class="spec-cell-label">Height</div>
-                            <div class="spec-cell-val" id="modalHeight">8'6" Height</div>
+                            <div class="spec-cell-val" id="modalHeight">--</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-6">
                         <div class="spec-cell">
                             <div class="spec-cell-label">Tare Weight</div>
-                            <div class="spec-cell-val" id="modalTareWeight">2,180 KG</div>
+                            <div class="spec-cell-val" id="modalTareWeight">-- KG</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-6">
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Ticket / EIR ID</div>
-                            <div class="spec-cell-val" id="modalTicketNo">1782</div>
+                            <div class="spec-cell-label">Safe Weight</div>
+                            <div class="spec-cell-val" id="modalSafeWeight">-- KG</div>
                         </div>
                     </div>
 
                     <div class="col-md-3 col-6">
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Category / Mode</div>
-                            <div class="spec-cell-val" id="modalCategory">COMMUNITY</div>
+                            <div class="spec-cell-label">Gross Weight</div>
+                            <div class="spec-cell-val text-warning fw-bold" id="modalGrossWeight">-- KG</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-6">
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Vehicle / Sub-Loc</div>
-                            <div class="spec-cell-val" id="modalVehicle">OUT</div>
+                            <div class="spec-cell-label">Category</div>
+                            <div class="spec-cell-val" id="modalCategory">--</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-6">
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Gate-In Date</div>
-                            <div class="spec-cell-val" id="modalGateIn" style="font-size: 0.78rem;">2026-06-01 15:52:03</div>
+                            <div class="spec-cell-label">Location Type</div>
+                            <div class="spec-cell-val text-info" id="modalLocationType">YARD</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-6">
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Gate-Out Date</div>
-                            <div class="spec-cell-val" id="modalGateOut" style="font-size: 0.78rem;">2026-06-01 17:06:07</div>
+                            <div class="spec-cell-label">Vessel / Voyage</div>
+                            <div class="spec-cell-val" id="modalVesselVoyage" style="font-size: 0.78rem;">--</div>
                         </div>
                     </div>
 
                     <div class="col-md-6 col-12">
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Terminal Operator</div>
-                            <div class="spec-cell-val text-info" id="modalOperator">SHOAIB</div>
+                            <div class="spec-cell-label">Yard-In Date Time</div>
+                            <div class="spec-cell-val" id="modalGateIn" style="font-size: 0.78rem;">--</div>
                         </div>
                     </div>
                     <div class="col-md-6 col-12">
                         <div class="spec-cell">
-                            <div class="spec-cell-label">Condition & Remarks</div>
-                            <div class="spec-cell-val" id="modalRemarks">NORMAL (NO DAMAGE)</div>
+                            <div class="spec-cell-label">Yard-Out Date Time</div>
+                            <div class="spec-cell-val" id="modalGateOut" style="font-size: 0.78rem;">--</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 2. Position Move Section -->
+                <!-- 2. Position Move Section (Physics & Cross-Yard Enforced) -->
                 <div class="p-3 rounded card-subbox">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="text-warning text-uppercase fw-bold small mb-0">
-                            <i class="bi bi-arrows-move me-1"></i> Move / Change Yard Position
+                            <i class="bi bi-arrows-move me-1"></i> Relocate Container (Cross-Yard & Base-To-Top Stacking)
                         </h6>
-                        <span class="badge bg-secondary" id="modalCurrentSlotBadge">Current: Row AB-01 &bull; Tier 6 &bull; Col A</span>
+                        <span class="badge bg-secondary" id="modalCurrentSlotBadge">Current Slot</span>
                     </div>
                     <p class="text-muted small mb-3">
-                        Select new destination position below to relocate this container. If destination slot is occupied, positions will swap.
+                        Terminal rule: Target slot must be empty. Stacking strictly progresses from Tier 1 (Base) upwards. Containers cannot be suspended in mid-air.
                     </p>
 
                     <div class="row g-2 align-items-end">
-                        <div class="col-md-3 col-4">
-                            <label class="form-label small text-muted mb-1">Target Row</label>
-                            <select class="form-select form-select-sm theme-select" id="modalTargetRow" onchange="previewTargetSlot()">
-                                <!-- Options 01 to 14 -->
+                        <!-- Target Yard -->
+                        <div class="col-md-3 col-6">
+                            <label class="form-label small text-muted mb-1 fw-bold">Target Yard / Stack</label>
+                            <select class="form-select form-select-sm theme-select" id="modalTargetYard" onchange="onModalYardChanged()">
                             </select>
                         </div>
-                        <div class="col-md-3 col-4">
-                            <label class="form-label small text-muted mb-1">Target Tier</label>
+                        <!-- Target Row -->
+                        <div class="col-md-3 col-6">
+                            <label class="form-label small text-muted mb-1 fw-bold">Target Row</label>
+                            <select class="form-select form-select-sm theme-select" id="modalTargetRow" onchange="onModalRowColChanged()">
+                            </select>
+                        </div>
+                        <!-- Target Column -->
+                        <div class="col-md-3 col-6">
+                            <label class="form-label small text-muted mb-1 fw-bold">Target Column</label>
+                            <select class="form-select form-select-sm theme-select" id="modalTargetCol" onchange="onModalRowColChanged()">
+                            </select>
+                        </div>
+                        <!-- Target Tier -->
+                        <div class="col-md-3 col-6">
+                            <label class="form-label small text-muted mb-1 fw-bold">Target Tier (Base-Up)</label>
                             <select class="form-select form-select-sm theme-select" id="modalTargetTier" onchange="previewTargetSlot()">
-                                <option value="6">Tier 6 (Top)</option>
-                                <option value="5">Tier 5</option>
-                                <option value="4">Tier 4</option>
-                                <option value="3">Tier 3</option>
-                                <option value="2">Tier 2</option>
-                                <option value="1">Tier 1 (Base)</option>
                             </select>
                         </div>
-                        <div class="col-md-3 col-4">
-                            <label class="form-label small text-muted mb-1">Target Column</label>
-                            <select class="form-select form-select-sm theme-select" id="modalTargetCol" onchange="previewTargetSlot()">
-                                <option value="A">Column A</option>
-                                <option value="B">Column B</option>
-                                <option value="C">Column C</option>
-                                <option value="D">Column D</option>
-                                <option value="E">Column E</option>
-                                <option value="F">Column F</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3 col-12 mt-2 mt-md-0">
-                            <button type="button" class="btn btn-warning btn-sm w-100 fw-bold" onclick="moveContainerFromModal()">
-                                <i class="bi bi-check2-circle me-1"></i> Apply Move
+                        <div class="col-12 mt-2">
+                            <button type="button" class="btn btn-warning btn-sm w-100 fw-bold" id="btnApplyModalMove" onclick="moveContainerFromModal()">
+                                <i class="bi bi-check2-circle me-1"></i> Confirm & Execute Move
                             </button>
                         </div>
                     </div>
 
-                    <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center small text-muted" style="border-color: var(--border-subtle) !important;" id="modalTargetPreview">
-                        <span>Target Status: <strong class="text-success" id="modalTargetStatusText">EMPTY / AVAILABLE</strong></span>
+                    <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center small" style="border-color: var(--border-subtle) !important;" id="modalTargetPreview">
+                        <span id="modalTargetStatusText" class="fw-bold text-success">EMPTY / AVAILABLE</span>
                         <button type="button" class="btn btn-sm btn-link text-info p-0 text-decoration-none" onclick="enableYardDraggingAndCloseModal()">
                             <i class="bi bi-cursor me-1"></i>Or drag directly on yard
                         </button>
@@ -392,10 +425,10 @@
 </div>
 
 <!-- =========================================================================
-     EMPTY SLOT INFORMATION & ASSIGNMENT MODAL (Replaces empty slot alert)
+     EMPTY SLOT INFORMATION & ASSIGNMENT MODAL (With Foundation Validation)
      ========================================================================= -->
 <div class="modal fade" id="emptySlotModal" tabindex="-1" aria-labelledby="emptySlotModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
         <div class="modal-content modal-custom">
             <div class="modal-header">
                 <div class="d-flex align-items-center gap-2">
@@ -403,8 +436,8 @@
                         <i class="bi bi-circle text-info"></i>
                     </div>
                     <div>
-                        <h5 class="modal-title fs-6 fw-bold mb-0" style="color: var(--text-highlight);" id="emptySlotModalTitle">Empty Slot: Row AB-01</h5>
-                        <small class="text-muted" id="emptySlotModalCoords">Tier 6 &bull; Column A &bull; Vacant Slot</small>
+                        <h5 class="modal-title fs-6 fw-bold mb-0" style="color: var(--text-highlight);" id="emptySlotModalTitle">Empty Slot</h5>
+                        <small class="text-muted" id="emptySlotModalCoords">Vacant Stacking Space</small>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -417,11 +450,11 @@
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <span class="text-muted small">PHYSICAL LOCATION:</span>
-                        <span class="small fw-bold" style="color: var(--text-highlight);" id="emptySlotLocText">Stack AB &bull; Row AB-01 &bull; Tier 6 &bull; Col A</span>
+                        <span class="small fw-bold" style="color: var(--text-highlight);" id="emptySlotLocText">--</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-2">
-                        <span class="text-muted small">CAPACITY:</span>
-                        <span class="text-info small fw-bold">1 TEU / Standard ISO Bay</span>
+                        <span class="text-muted small">FOUNDATION STATUS:</span>
+                        <span class="small fw-bold text-info" id="emptySlotFoundationText">Base Tier (Ground)</span>
                     </div>
                 </div>
 
@@ -429,12 +462,13 @@
                 <div id="emptySlotMoveBox" class="p-3 rounded card-subbox" style="display: none;">
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <i class="bi bi-arrows-move text-warning"></i>
-                        <span class="small fw-bold" style="color: var(--text-highlight);">Relocate to this Slot:</span>
+                        <span class="small fw-bold" style="color: var(--text-highlight);">Relocate Candidate:</span>
                     </div>
-                    <p class="text-muted small mb-3">
-                        Container <strong class="text-info" id="emptySlotCandidateNo">GLDU5661160</strong> is currently selected. Move it into this empty slot?
+                    <p class="text-muted small mb-2">
+                        Move container <strong class="text-info" id="emptySlotCandidateNo">--</strong> into this slot?
                     </p>
-                    <button type="button" class="btn btn-warning btn-sm w-100 fw-bold" onclick="confirmMoveToEmptySlot()">
+                    <div id="emptySlotValidationAlert" class="alert alert-warning py-1 px-2 small mb-2" style="display: none;"></div>
+                    <button type="button" class="btn btn-warning btn-sm w-100 fw-bold" id="btnConfirmEmptyMove" onclick="confirmMoveToEmptySlot()">
                         <i class="bi bi-box-arrow-in-down me-1"></i> Confirm Move to this Slot
                     </button>
                 </div>
@@ -447,15 +481,15 @@
 </div>
 
 <!-- =========================================================================
-     APP NOTIFICATION MODAL (Replaces all browser alert / promise popups)
+     APP NOTIFICATION MODAL (Clean Replacement for alert/confirm popups)
      ========================================================================= -->
 <div class="modal fade" id="appNoticeModal" tabindex="-1" aria-labelledby="appNoticeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
         <div class="modal-content modal-custom">
             <div class="modal-header border-0 pb-0">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-info-circle-fill text-info fs-5" id="noticeIcon"></i>
-                    <h6 class="modal-title fw-bold mb-0" style="color: var(--text-highlight);" id="noticeTitle">Yard Operations Notice</h6>
+                    <h6 class="modal-title fw-bold mb-0" style="color: var(--text-highlight);" id="noticeTitle">Terminal Notification</h6>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -469,12 +503,15 @@
     </div>
 </div>
 
+<!-- ActiveMQ Real-Time Live Notification Toast Container -->
+<div id="activemqToastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 999999; pointer-events: none;"></div>
+
 @section Scripts {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 
     <script>
         // =========================================================================
-        // 1. THEME MANAGEMENT
+        // 1. THEME MANAGEMENT (High Contrast Black & White / Dark & Light)
         // =========================================================================
         function initTheme() {
             const savedTheme = localStorage.getItem('yard_theme') || 'dark';
@@ -493,169 +530,391 @@
             const icon = document.getElementById('themeIcon');
             const label = document.getElementById('themeLabel');
             if (theme === 'light') {
-                icon.className = 'bi bi-sun-fill text-warning';
-                label.innerText = 'Light Mode';
+                if (icon) icon.className = 'bi bi-sun-fill text-warning';
+                if (label) label.innerText = 'Light Mode';
             } else {
-                icon.className = 'bi bi-moon-stars-fill text-info';
-                label.innerText = 'Dark Mode';
+                if (icon) icon.className = 'bi bi-moon-stars-fill text-info';
+                if (label) label.innerText = 'Dark Mode';
             }
         }
         initTheme();
 
         // =========================================================================
-        // 2. YARD CONSTANTS & SIR'S REAL CONTAINER TABLE DATA
+        // 2. YARDS STORE & CONFIGURATION
         // =========================================================================
-        const STACK_NAME = "AB";
-        const TOTAL_ROWS = 14;
-        const TIERS_COUNT = 6;
-        const COLS = ['A', 'B', 'C', 'D', 'E', 'F'];
+        let yardList = [];
+        let activeYard = {
+            name: "STACK-AB",
+            prefix: "AB",
+            stackRows: 14,
+            yAxis: 6,
+            xAxis: 6,
+            xAxisStartFrom: "A",
+            yAxisStartFrom: "1"
+        };
 
-        // Row sequence order (saved in localStorage for reordering)
-        let rowSequence = [];
-        function initRowSequence() {
-            const saved = localStorage.getItem('yard_row_sequence');
-            if (saved) {
-                try {
-                    rowSequence = JSON.parse(saved);
-                    if (Array.isArray(rowSequence) && rowSequence.length === TOTAL_ROWS) return;
-                } catch(e) {}
-            }
-            rowSequence = [];
-            for (let r = 1; r <= TOTAL_ROWS; r++) {
-                rowSequence.push(r.toString().padStart(2, '0'));
-            }
-        }
-        initRowSequence();
-
-        // Table Data from Sir's CSV dataset
-        const SIR_DATASET = [
-            { sno: 1, no: "GLDU5661160", prefix: "GLDU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2180 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1782", gateIn: "2026-06-01 15:52:03", opIn: "SHOAIB", gateOut: "2026-06-01 17:06:07", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 2, no: "FCIU3330351", prefix: "FCIU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2180 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1783", gateIn: "2026-06-01 15:52:43", opIn: "SHOAIB", gateOut: "2026-06-01 17:06:12", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 3, no: "APZU3898870", prefix: "APZU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2180 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1784", gateIn: "2026-06-01 15:53:36", opIn: "SHOAIB", gateOut: "2026-06-01 17:06:18", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 4, no: "ECMU7191689", prefix: "ECMU", line: "CMA", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3700 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1786", gateIn: "2026-06-01 16:06:43", opIn: "SHOAIB", gateOut: "2026-06-01 17:06:40", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 5, no: "CAIU3864174", prefix: "CAIU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2180 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1787", gateIn: "2026-06-01 16:07:21", opIn: "SHOAIB", gateOut: "2026-06-01 17:06:56", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 6, no: "TCKU3569753", prefix: "TCKU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2180 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1790", gateIn: "2026-06-01 16:09:17", opIn: "SHOAIB", gateOut: "2026-06-01 17:07:27", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 7, no: "CMAU0931327", prefix: "CMAU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2100 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1817", gateIn: "2026-06-02 15:53:41", opIn: "SIMRAN", gateOut: "2026-06-02 15:55:34", opOut: "SIMRAN", remarks: "NORMAL" },
-            { sno: 8, no: "CMAU1493652", prefix: "CMAU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2100 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1818", gateIn: "2026-06-02 16:00:18", opIn: "SIMRAN", gateOut: "2026-06-02 16:02:03", opOut: "SIMRAN", remarks: "NORMAL" },
-            { sno: 9, no: "DFSU1742060", prefix: "DFSU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2100 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1819", gateIn: "2026-06-02 16:05:41", opIn: "SIMRAN", gateOut: "2026-06-02 16:07:18", opOut: "SIMRAN", remarks: "NORMAL" },
-            { sno: 10, no: "TLLU2806373", prefix: "TLLU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2100 KG", cat: "TRUCK", status: "SELF", vehicle: "JU5462", ticket: "1820", gateIn: "2026-06-02 16:10:03", opIn: "SIMRAN", gateOut: "2026-06-02 16:10:03", opOut: "SIMRAN", remarks: "NORMAL" },
-            { sno: 11, no: "TLLU8329175", prefix: "TLLU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2100 KG", cat: "TRUCK", status: "SELF", vehicle: "JU5462", ticket: "1821", gateIn: "2026-06-02 16:28:40", opIn: "SIMRAN", gateOut: "2026-06-02 16:28:40", opOut: "SIMRAN", remarks: "NORMAL" },
-            { sno: 12, no: "MSDU5765902", prefix: "MSDU", line: "MSC", size: "40", type: "DH", height: "80", iso: "40G1", tare: "3800 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1822", gateIn: "2026-06-02 16:53:54", opIn: "SIMRAN", gateOut: "2026-06-02 16:54:29", opOut: "SIMRAN", remarks: "NORMAL" },
-            { sno: 13, no: "MSCU5130873", prefix: "MSCU", line: "WEC", size: "40", type: "DH", height: "80", iso: "40G1", tare: "3800 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1823", gateIn: "2026-06-02 17:00:16", opIn: "SIMRAN", gateOut: "2026-06-02 17:01:01", opOut: "SIMRAN", remarks: "NORMAL" },
-            { sno: 14, no: "TRHU8320864", prefix: "TRHU", line: "MSK", size: "40", type: "DH", height: "80", iso: "40G1", tare: "3700 KG", cat: "OUT", status: "OUT", vehicle: "OUT", ticket: "1826", gateIn: "2026-06-02 22:31:06", opIn: "ADMIN", gateOut: "2026-06-02 23:01:25", opOut: "ADMIN", remarks: "NORMAL" },
-            { sno: 15, no: "APZU3976422", prefix: "APZU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2220 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1837", gateIn: "2026-06-03 10:57:43", opIn: "SHOAIB", gateOut: "2026-06-03 11:00:08", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 16, no: "BSIU2564840", prefix: "BSIU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2130 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1838", gateIn: "2026-06-03 10:58:40", opIn: "SHOAIB", gateOut: "2026-06-03 11:00:47", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 17, no: "HAMU3326910", prefix: "HAMU", line: "HPL", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3700 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1839", gateIn: "2026-06-03 11:46:22", opIn: "SHOAIB", gateOut: "2026-06-03 11:47:04", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 18, no: "CMAU0442861", prefix: "CMAU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "1900 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1527", gateIn: "2026-01-31 19:47:17", opIn: "ADMIN", gateOut: "2026-01-31 19:49:41", opOut: "ADMIN", remarks: "NORMAL" },
-            { sno: 19, no: "GESU6157310", prefix: "GESU", line: "CMA", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3700 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1528", gateIn: "2026-01-31 19:53:32", opIn: "ADMIN", gateOut: "2026-01-31 19:55:02", opOut: "ADMIN", remarks: "NORMAL" },
-            { sno: 20, no: "CMAU3554145", prefix: "CMAU", line: "CMA", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3700 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1529", gateIn: "2026-01-31 19:57:01", opIn: "ADMIN", gateOut: "2026-01-31 19:58:06", opOut: "ADMIN", remarks: "NORMAL" },
-            { sno: 21, no: "CAIU9664574", prefix: "CAIU", line: "CMA", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3800 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1530", gateIn: "2026-01-31 19:59:41", opIn: "ADMIN", gateOut: "2026-01-31 20:00:56", opOut: "ADMIN", remarks: "NORMAL" },
-            { sno: 22, no: "SEGU6375852", prefix: "SEGU", line: "CMA", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3800 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1531", gateIn: "2026-01-31 20:02:53", opIn: "ADMIN", gateOut: "2026-01-31 20:03:49", opOut: "ADMIN", remarks: "NORMAL" },
-            { sno: 28, no: "GESU1068170", prefix: "GESU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2100 KG", cat: "COMMUNITY", status: "OUT", vehicle: "DELIVERED", ticket: "1595", gateIn: "2026-02-06 18:12:42", opIn: "ADMIN", gateOut: "2026-02-10 19:11:06", opOut: "ADMIN", remarks: "NORMAL" },
-            { sno: 69, no: "TIIU6555309", prefix: "TIIU", line: "COS", size: "40", type: "DH", height: "96", iso: "45G0", tare: "3900 KG", cat: "YARD", status: "QFS", vehicle: "OPEN B1", ticket: "1661", gateIn: "2026-04-14 15:57:07", opIn: "ADMIN", gateOut: "2026-04-14 15:57:44", opOut: "ADMIN", remarks: "IN-YARD STACK" },
-            { sno: 70, no: "TRHU8005733", prefix: "TRHU", line: "COS", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3900 KG", cat: "YARD", status: "QFS", vehicle: "OPEN B1", ticket: "1662", gateIn: "2026-04-14 15:58:34", opIn: "ADMIN", gateOut: "2026-04-14 15:59:09", opOut: "ADMIN", remarks: "IN-YARD STACK" },
-            { sno: 111, no: "ECMU8065237", prefix: "ECMU", line: "CMA", size: "45", type: "DH", height: "96", iso: "L5G1", tare: "4200 KG", cat: "COMMUNITY", status: "DELIVERED", vehicle: "OUT", ticket: "1703", gateIn: "2026-04-14 17:31:18", opIn: "ADMIN", gateOut: "2026-04-14 17:31:50", opOut: "ADMIN", remarks: "45FT HIGH CUBE" },
-            { sno: 321, no: "MSKU9973746", prefix: "MSKU", line: "GAC", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3850 KG", cat: "COMMUNITY", status: "OUT", vehicle: "DELIVERED", ticket: "2242", gateIn: "2026-08-18 09:49:44", opIn: "SIMRAN", gateOut: "2026-09-07 17:44:11", opOut: "IRFANK", remarks: "NORMAL" },
-            { sno: 322, no: "BEAU5452309", prefix: "BEAU", line: "ONE", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3700 KG", cat: "COMMUNITY", status: "OUT", vehicle: "DELIVERED", ticket: "2244", gateIn: "2026-08-18 09:56:00", opIn: "SIMRAN", gateOut: "2026-08-21 16:07:19", opOut: "SHOAIB", remarks: "NORMAL" },
-            { sno: 330, no: "BMOU2065759", prefix: "BMOU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2220 KG", cat: "COMMUNITY", status: "OUT", vehicle: "DELIVERED", ticket: "2312", gateIn: "2026-08-25 01:51:58", opIn: "IRFANK", gateOut: "2026-08-28 12:53:27", opOut: "ALL SIDE DENTED", remarks: "ALL SIDE DENTED" },
-            { sno: 390, no: "TEMU4603693", prefix: "TEMU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2200 KG", cat: "COMMUNITY", status: "OUT", vehicle: "DELIVERED", ticket: "2304", gateIn: "2026-08-23 04:07:50", opIn: "SIMRAN", gateOut: "2026-08-27 23:59:18", opOut: "ALL SIDE DENTED", remarks: "ALL SIDE DENTED" },
-            { sno: 418, no: "CMAU1838944", prefix: "CMAU", line: "CMA", size: "20", type: "DR", height: "86", iso: "22G1", tare: "2190 KG", cat: "YARD", status: "QFS", vehicle: "OPEN", ticket: "2286", gateIn: "2026-08-23 01:00:16", opIn: "IRFANK", gateOut: "2026-08-23 01:36:41", opOut: "IRFANK", remarks: "IN-YARD STACK" },
-            { sno: 601, no: "CMAU4538534", prefix: "CMAU", line: "CMA", size: "40", type: "DH", height: "96", iso: "45G1", tare: "3800 KG", cat: "YARD", status: "QFS", vehicle: "OPEN", ticket: "2171", gateIn: "2026-08-14 00:00:56", opIn: "ADMIN", gateOut: "2026-08-14 00:35:21", opOut: "ADMIN", remarks: "IN-YARD STACK" },
-            { sno: 1334, no: "ECMU8060560", prefix: "ECMU", line: "CMA", size: "45", type: "DH", height: "96", iso: "L5G1", tare: "4500 KG", cat: "YARD", status: "QFS", vehicle: "OPEN", ticket: "2825", gateIn: "2026-09-30 01:59:31", opIn: "SHAHZAIB", gateOut: "2026-09-30 02:08:07", opOut: "SHAHZAIB", remarks: "45FT HIGH CUBE" }
-        ];
-
-        // Container store mapped by slot key (e.g. "SLOT-AB01-6A")
         let containerStore = {};
-        let selectedSlotKey = "SLOT-AB01-6A";
+        let selectedSlotKey = null;
+        let lastOccupiedKey = null;
         let isDraggingEnabled = false;
         let draggedSlotKey = null;
+        let rowSequence = [];
 
-        // Seed Yard with Containers from Sir's Table
-        function seedYardFromSirTable() {
-            let dataIndex = 0;
-            for (let r = 1; r <= TOTAL_ROWS; r++) {
-                const rowStr = r.toString().padStart(2, '0');
-                for (let t = 1; t <= TIERS_COUNT; t++) {
-                    for (let c = 0; c < COLS.length; c++) {
-                        const colLetter = COLS[c];
-                        const slotKey = `SLOT-${STACK_NAME}${rowStr}-${t}${colLetter}`;
-                        
-                        // Fill approximately 70% of slots with records from Sir's dataset
-                        const shouldFill = (t <= 3) || (Math.random() > 0.35);
+        function getColsForYard(yard) {
+            const count = yard.xAxis || 6;
+            const cols = [];
+            for (let i = 0; i < count; i++) {
+                cols.push(String.fromCharCode(65 + i)); // 'A', 'B', 'C', ...
+            }
+            return cols;
+        }
 
-                        if (shouldFill) {
-                            const template = SIR_DATASET[dataIndex % SIR_DATASET.length];
-                            dataIndex++;
+        function buildSlotKey(yardPrefix, rowStr, tier, col) {
+            const r = String(rowStr).padStart(2, '0');
+            return `SLOT-${yardPrefix}${r}-${tier}${col}`;
+        }
 
-                            containerStore[slotKey] = {
-                                slotKey: slotKey,
-                                stack: STACK_NAME,
-                                row: rowStr,
-                                tier: t.toString(),
-                                col: colLetter,
-                                sno: template.sno,
-                                no: template.no,
-                                prefix: template.prefix,
-                                line: template.line,
-                                size: template.size,
-                                type: template.type,
-                                height: template.height,
-                                iso: template.iso,
-                                tare: template.tare,
-                                cat: template.cat,
-                                status: template.status,
-                                vehicle: template.vehicle,
-                                ticket: template.ticket,
-                                gateIn: template.gateIn,
-                                opIn: template.opIn,
-                                gateOut: template.gateOut,
-                                opOut: template.opOut,
-                                remarks: template.remarks
-                            };
-                        }
+        function parseSlotKey(slotKey) {
+            if (!slotKey || !slotKey.startsWith('SLOT-')) return null;
+            const raw = slotKey.replace('SLOT-', '');
+            // Matches e.g. "AB01-1A" or "STACK-CD01-1A"
+            const match = raw.match(/^([A-Za-z0-9_-]+?)(\d{2})-(\d+)([A-Za-z])$/);
+            if (match) {
+                return {
+                    yardPrefix: match[1],
+                    rowStr: match[2],
+                    tier: parseInt(match[3], 10),
+                    col: match[4].toUpperCase()
+                };
+            }
+            return null;
+        }
+
+        // =========================================================================
+        // 3. PHYSICAL STACKING & GRAVITY VALIDATION
+        // =========================================================================
+
+        /**
+         * Validates if a container can be picked up.
+         * RULE: You cannot pull a container from underneath another container.
+         * Only the topmost container in a column can be picked/moved.
+         */
+        function validateCanPick(sourceKey) {
+            const unit = containerStore[sourceKey];
+            if (!unit) {
+                return { allowed: false, error: "No container found in the selected slot." };
+            }
+
+            const info = parseSlotKey(sourceKey);
+            if (!info) {
+                return { allowed: true };
+            }
+
+            const maxTier = activeYard.yAxis || 6;
+            for (let t = info.tier + 1; t <= maxTier; t++) {
+                const aboveKey = buildSlotKey(info.yardPrefix, info.rowStr, t, info.col);
+                if (containerStore[aboveKey]) {
+                    const aboveUnit = containerStore[aboveKey];
+                    return {
+                        allowed: false,
+                        error: `Physical Stacking Violation: Container ${unit.ctrNbr} (Tier ${info.tier}) is buried underneath ${aboveUnit.ctrNbr} (Tier ${t}). In yard terminal operations, containers above cannot float in the air. You must move the top container first!`
+                    };
+                }
+            }
+
+            return { allowed: true };
+        }
+
+        /**
+         * Validates target slot for placement.
+         * RULE 1: Target must NOT be occupied (no replacement/swapping).
+         * RULE 2: Container cannot float in mid-air. Stacking must start at Tier 1 (Base)
+         *         or directly on top of an existing container at Tier T-1.
+         */
+        function validateTargetPlacement(sourceKey, targetYardPrefix, targetRowStr, targetTier, targetCol) {
+            const targetKey = buildSlotKey(targetYardPrefix, targetRowStr, targetTier, targetCol);
+
+            // Cannot move to itself
+            if (sourceKey === targetKey) {
+                return { valid: false, error: "Target position is identical to current position." };
+            }
+
+            // Target must be EMPTY: strictly no replacing or swapping
+            if (containerStore[targetKey]) {
+                const existing = containerStore[targetKey];
+                return {
+                    valid: false,
+                    error: `Target slot is already occupied by container ${existing.ctrNbr}. You cannot overwrite or replace an existing container. Movement is only allowed to vacant spaces.`
+                };
+            }
+
+            // Stacking Foundation / Gravity Rule:
+            if (targetTier > 1) {
+                // Tier directly beneath must be occupied!
+                const directlyBelowKey = buildSlotKey(targetYardPrefix, targetRowStr, targetTier - 1, targetCol);
+                if (!containerStore[directlyBelowKey] || directlyBelowKey === sourceKey) {
+                    return {
+                        valid: false,
+                        error: `Physical Stacking Violation: Container cannot float in the air! Tier ${targetTier - 1} directly below is vacant. Containers must stack solidly from Tier 1 (Base) upwards.`
+                    };
+                }
+
+                // Check that there are no empty gaps anywhere beneath
+                for (let t = 1; t < targetTier; t++) {
+                    const checkKey = buildSlotKey(targetYardPrefix, targetRowStr, t, targetCol);
+                    if (!containerStore[checkKey] || checkKey === sourceKey) {
+                        return {
+                            valid: false,
+                            error: `Physical Stacking Violation: Empty gap at Tier ${t}. A container cannot rest on an empty space.`
+                        };
                     }
                 }
             }
 
-            // Ensure first unit exists
-            if (!containerStore["SLOT-AB01-6A"]) {
-                const t0 = SIR_DATASET[0];
-                containerStore["SLOT-AB01-6A"] = {
-                    slotKey: "SLOT-AB01-6A",
-                    stack: "AB",
-                    row: "01",
-                    tier: "6",
-                    col: "A",
-                    ...t0
-                };
-            }
+            return { valid: true };
         }
-        seedYardFromSirTable();
+
+        /**
+         * Finds the next valid stacking tier for a given row and column.
+         * e.g. If empty -> Tier 1. If Tier 1 occupied -> Tier 2.
+         */
+        function getNextValidTierForColumn(yardPrefix, rowStr, colLetter, maxYAxis) {
+            const maxTier = maxYAxis || 6;
+            for (let t = 1; t <= maxTier; t++) {
+                const k = buildSlotKey(yardPrefix, rowStr, t, colLetter);
+                if (!containerStore[k]) {
+                    return t; // Lowest empty tier resting on solid base
+                }
+            }
+            return null; // Column is at maximum capacity
+        }
 
         // =========================================================================
-        // 3. BUILD YARD GRID (NO 3D, NO ZOOM)
+        // 4. LOAD YARD SLOTS & CONTAINERS FROM LIVE ORACLE DATABASE
         // =========================================================================
+        async function loadYardsAndContainers() {
+            showLoader("Connecting to Oracle Database...", "Connecting to Oracle <code>Pkg_Front_End</code> on <code>108.181.189.249:1521</code>...", 20);
+
+            // 1. Fetch configured Yard Slots from Oracle yard_slots table
+            try {
+                const res = await fetch('/api/yard/slots');
+                const json = await res.json();
+                if (json.status === 'OK' && Array.isArray(json.data) && json.data.length > 0) {
+                    yardList = json.data;
+                }
+            } catch (err) {
+                console.warn("Could not load yard slots from Oracle:", err);
+            }
+
+            // If table has no records yet, provide standard yard architectures
+            if (yardList.length === 0) {
+                yardList = [
+                    { yardSlotName: "STACK-AB", stackRows: 14, yAxis: 6, xAxis: 6, xAxisStartFrom: "A", yAxisStartFrom: "1" },
+                    { yardSlotName: "STACK-CD", stackRows: 10, yAxis: 6, xAxis: 6, xAxisStartFrom: "A", yAxisStartFrom: "1" }
+                ];
+            }
+
+            // Populate Yard Selector in Top Navigation
+            const yardSelect = document.getElementById('activeYardSelect');
+            if (yardSelect) {
+                yardSelect.innerHTML = '';
+                yardList.forEach(y => {
+                    const opt = document.createElement('option');
+                    opt.value = y.yardSlotName;
+                    opt.innerText = `${y.yardSlotName} (${y.stackRows || 14} Rows)`;
+                    yardSelect.appendChild(opt);
+                });
+            }
+
+            // Set active yard
+            const savedYardName = localStorage.getItem('yard_active_name') || yardList[0].yardSlotName;
+            setActiveYardByName(savedYardName);
+
+            // 2. Load containers from Oracle Pkg_Front_End.Get_All_Containers (Ctr2 table)
+            await loadContainersFromOracle();
+        }
+
+        function setActiveYardByName(name) {
+            const found = yardList.find(y => y.yardSlotName === name) || yardList[0];
+            const cleanPrefix = found.yardSlotName.replace('STACK-', '').replace('YARD-', '').replace(/[^A-Za-z0-9]/g, '');
+            activeYard = {
+                name: found.yardSlotName,
+                prefix: cleanPrefix || "AB",
+                stackRows: parseInt(found.stackRows, 10) || 14,
+                yAxis: parseInt(found.yAxis, 10) || 6,
+                xAxis: parseInt(found.xAxis, 10) || 6,
+                xAxisStartFrom: found.xAxisStartFrom || "A",
+                yAxisStartFrom: found.yAxisStartFrom || "1"
+            };
+
+            const yardSelect = document.getElementById('activeYardSelect');
+            if (yardSelect) yardSelect.value = found.yardSlotName;
+
+            localStorage.setItem('yard_active_name', found.yardSlotName);
+            initRowSequence();
+        }
+
+        function switchActiveYard(yardName) {
+            setActiveYardByName(yardName);
+            buildYard();
+        }
+
+        function showLoader(title = "Loading Yard Stack & Rows...", subtitle = "The track is working according to yard &bull; Synchronizing Stack Rows via <code>Pkg_Front_End</code>", percent = 30) {
+            const overlay = document.getElementById('yardLoaderOverlay');
+            if (!overlay) return;
+            const t = document.getElementById('loaderTitle');
+            const s = document.getElementById('loaderSubtitle');
+            const p = document.getElementById('loaderProgressBar');
+            if (t) t.innerText = title;
+            if (s) s.innerHTML = subtitle;
+            if (p) p.style.width = `${percent}%`;
+            overlay.classList.remove('hidden');
+        }
+
+        function updateLoader(title, subtitle, percent) {
+            const t = document.getElementById('loaderTitle');
+            const s = document.getElementById('loaderSubtitle');
+            const p = document.getElementById('loaderProgressBar');
+            if (t && title) t.innerText = title;
+            if (s && subtitle) s.innerHTML = subtitle;
+            if (p && percent) p.style.width = `${percent}%`;
+        }
+
+        function hideLoader() {
+            const overlay = document.getElementById('yardLoaderOverlay');
+            if (!overlay) return;
+            updateLoader("Yard Grid Active", "The track is working according to yard &bull; Stacking ready", 100);
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+            }, 350);
+        }
+
+        async function forceReloadContainers() {
+            showLoader("Syncing Yard Stack...", "The track is working according to yard &bull; Refreshing container positions from Oracle...", 25);
+            await loadContainersFromOracle(true);
+        }
+
+        async function loadContainersFromOracle(forceRefresh = false) {
+            showLoader(
+                forceRefresh ? "Syncing Yard Stack..." : "Loading Yard Stack & Rows...",
+                "The track is working according to yard &bull; Synchronizing Stack Rows & Tiers via <code>Pkg_Front_End</code>",
+                45
+            );
+            containerStore = {};
+
+            try {
+                const url = forceRefresh ? '/api/yard/containers?refresh=true' : '/api/yard/containers';
+                const response = await fetch(url);
+                updateLoader("Aligning Yard Layout...", "The track is working according to yard &bull; Placing containers on base tiers...", 75);
+                const json = await response.json();
+
+                if (json.status === 'OK' && Array.isArray(json.data) && json.data.length > 0) {
+                    const countEl = document.getElementById('loaderCountText');
+                    if (countEl) countEl.innerText = `${json.data.length.toLocaleString()} Yard Containers`;
+
+                    // Populate containerStore strictly from live Oracle records
+                    json.data.forEach((c, index) => {
+                        let slotKey = parsePositionToSlotKey(c.currentPosition, index);
+                        containerStore[slotKey] = {
+                            slotKey: slotKey,
+                            ctrNbr: c.ctrNbr,
+                            ctrSize: c.ctrSize || "20",
+                            ctrType: c.ctrType || "DR",
+                            ctrHeight: c.ctrHeight || "86",
+                            tareWeight: c.tareWeight ? Number(c.tareWeight).toLocaleString() : "--",
+                            tareWeightUnit: c.tareWeightUnit || "KG",
+                            safeWeight: c.safeWeight ? Number(c.safeWeight).toLocaleString() : "--",
+                            safeWeightUnit: c.safeWeightUnit || "KG",
+                            currentLocationType: c.currentLocationType || "YARD",
+                            currentPosition: c.currentPosition || slotKey.replace('SLOT-', ''),
+                            category: "COMMUNITY",
+                            status: "DELIVERED",
+                            grossWeight: "--",
+                            grossWeightUnit: "KG",
+                            vesselCode: "--",
+                            voyage: "--",
+                            yardInTime: "--",
+                            yardOutTime: "--"
+                        };
+                    });
+                }
+            } catch (err) {
+                console.error("Could not fetch containers from Oracle:", err);
+            }
+
+            buildYard();
+            hideLoader();
+        }
+
+        /**
+         * Maps an Oracle current_position or assigns to a valid base slot.
+         * Enforces BASE-TO-TOP: Tier 1 is ground level and filled first.
+         */
+        function parsePositionToSlotKey(posStr, sequentialIndex) {
+            if (posStr && posStr.startsWith('SLOT-')) return posStr;
+
+            if (posStr) {
+                const clean = posStr.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                // Check if string contains row (2 digits), tier (1 digit), and col (1 letter)
+                const match = clean.match(/([0-9]{2})([1-6])([A-F])/);
+                if (match) {
+                    const row = match[1];
+                    const tier = match[2];
+                    const col = match[3];
+                    return buildSlotKey(activeYard.prefix, row, tier, col);
+                }
+            }
+
+            // Stacking strictly from Tier 1 (Base) upwards:
+            // Calculate row, col, and tier:
+            const cols = getColsForYard(activeYard);
+            const slotsPerRow = cols.length * activeYard.yAxis;
+            const r = ((Math.floor(sequentialIndex / slotsPerRow) % activeYard.stackRows) + 1).toString().padStart(2, '0');
+            const slotInRow = sequentialIndex % slotsPerRow;
+            const col = cols[slotInRow % cols.length];
+            // Tier 1 is BASE: filled first!
+            const tier = ((Math.floor(slotInRow / cols.length) % activeYard.yAxis) + 1).toString();
+
+            return buildSlotKey(activeYard.prefix, r, tier, col);
+        }
+
+        // =========================================================================
+        // 5. BUILD YARD GRID (NO 3D, NO ZOOM)
+        // =========================================================================
+        function initRowSequence() {
+            const key = `yard_row_seq_${activeYard.name}`;
+            const saved = localStorage.getItem(key);
+            if (saved) {
+                try {
+                    rowSequence = JSON.parse(saved);
+                    if (Array.isArray(rowSequence) && rowSequence.length === activeYard.stackRows) return;
+                } catch(e) {}
+            }
+            rowSequence = [];
+            for (let r = 1; r <= activeYard.stackRows; r++) {
+                rowSequence.push(r.toString().padStart(2, '0'));
+            }
+        }
+
+        function resetRowSequence() {
+            localStorage.removeItem(`yard_row_seq_${activeYard.name}`);
+            initRowSequence();
+            buildYard();
+        }
+
         function buildYard() {
             const gridContainer = document.getElementById('yardGrid');
             const jumperBar = document.getElementById('rowJumperBar');
-            const modalRowSelect = document.getElementById('modalTargetRow');
+            const cols = getColsForYard(activeYard);
 
             gridContainer.innerHTML = '';
             jumperBar.innerHTML = `<span class="row-chip active" onclick="jumpToRow('all', this)">ALL</span>`;
-            if (modalRowSelect) modalRowSelect.innerHTML = '';
 
             rowSequence.forEach((rowStr, index) => {
-                const rowId = `ROW-${STACK_NAME}-${rowStr}`;
+                const rowId = `ROW-${activeYard.prefix}-${rowStr}`;
 
-                // Row jumper chips
-                jumperBar.innerHTML += `<span class="row-chip" onclick="jumpToRow('${rowId}', this)">AB-${rowStr}</span>`;
+                jumperBar.innerHTML += `<span class="row-chip" onclick="jumpToRow('${rowId}', this)">${activeYard.prefix}-${rowStr}</span>`;
 
-                // Modal Row options
-                if (modalRowSelect) {
-                    modalRowSelect.innerHTML += `<option value="${rowStr}">Row AB-${rowStr}</option>`;
-                }
-
-                // Row Block Card
                 const rowBlock = document.createElement('div');
                 rowBlock.className = 'yard-block';
                 rowBlock.id = rowId;
@@ -669,8 +928,8 @@
                                 <i class="bi bi-grip-vertical"></i>
                             </span>
                             <span class="row-order-badge">#${index + 1}</span>
-                            <span class="badge-stack">${STACK_NAME}</span>
-                            <span>ROW ${STACK_NAME}-${rowStr}</span>
+                            <span class="badge-stack">${activeYard.prefix}</span>
+                            <span>ROW ${activeYard.prefix}-${rowStr}</span>
                         </div>
                         <div class="d-flex align-items-center gap-1">
                             <button class="row-action-btn" title="Move row left" onclick="moveRowPosition('${rowStr}', -1); event.stopPropagation();">
@@ -679,13 +938,13 @@
                             <button class="row-action-btn" title="Move row right" onclick="moveRowPosition('${rowStr}', 1); event.stopPropagation();">
                                 <i class="bi bi-chevron-right"></i>
                             </button>
-                            <span class="block-head-stats ms-1" id="stats-${rowStr}">0 / 36</span>
+                            <span class="block-head-stats ms-1" id="stats-${rowStr}">0 / ${cols.length * activeYard.yAxis}</span>
                         </div>
                     </div>
                     <div class="mini-grid">
                         <div class="l"></div>
-                        ${COLS.map(c => `<div class="l">${c}</div>`).join('')}
-                        ${generateRowSlots(rowStr)}
+                        ${cols.map(c => `<div class="l">${c}</div>`).join('')}
+                        ${generateRowSlots(rowStr, cols)}
                     </div>`;
 
                 attachRowDragEvents(rowBlock);
@@ -693,28 +952,32 @@
             });
 
             updateCounters();
-            updateSidebarDetails(selectedSlotKey);
+            if (selectedSlotKey) {
+                updateSidebarDetails(selectedSlotKey);
+            }
         }
 
-        function generateRowSlots(rowStr) {
+        function generateRowSlots(rowStr, cols) {
             let html = '';
-            for (let t = TIERS_COUNT; t >= 1; t--) {
+            // Display tiers top down (Tier 6 top, Tier 1 base)
+            for (let t = activeYard.yAxis; t >= 1; t--) {
                 html += `<div class="l">${t}</div>`;
-                for (let c = 0; c < COLS.length; c++) {
-                    const colLetter = COLS[c];
-                    const slotKey = `SLOT-${STACK_NAME}${rowStr}-${t}${colLetter}`;
+                for (let c = 0; c < cols.length; c++) {
+                    const colLetter = cols[c];
+                    const slotKey = buildSlotKey(activeYard.prefix, rowStr, t, colLetter);
                     const unit = containerStore[slotKey];
                     const isOccupied = !!unit;
                     const statusClass = isOccupied ? getCellColorClass(unit) : 'empty';
 
                     const tooltipText = isOccupied ? 
-                        `${unit.no} | ${unit.line} (${unit.size}ft) | ${unit.status} | Tier ${t} Col ${colLetter}` : 
-                        `Row AB-${rowStr} • Tier ${t} • Col ${colLetter} (EMPTY SLOT)`;
+                        `${unit.ctrNbr} | ${unit.ctrSize}ft ${unit.ctrType} | Tier ${t} Col ${colLetter}` : 
+                        `Row ${activeYard.prefix}-${rowStr} • Tier ${t} • Col ${colLetter} (VACANT SLOT)`;
 
                     html += `
                         <div class="c ${statusClass}" 
                              id="${slotKey}"
                              data-slot="${slotKey}"
+                             data-yard="${activeYard.prefix}"
                              data-row="${rowStr}"
                              data-tier="${t}"
                              data-col="${colLetter}"
@@ -733,21 +996,18 @@
 
         function getCellColorClass(unit) {
             if (!unit) return 'empty';
-            if (unit.cat === 'YARD' || unit.status === 'QFS') return 'c-alert'; // In-Yard active
-            if (unit.remarks && unit.remarks.includes('DENTED')) return 'alarm'; // Damage/Alert
-            if (unit.size === '40' || unit.size === '45') return 'cleared'; // 40ft/45ft
-            return 'conn'; // 20ft Delivered
+            if (unit.ctrType === 'RF') return 'reefer';
+            if (unit.currentLocationType === 'TRUCK') return 'c-alert';
+            if (unit.ctrSize === '40' || unit.ctrSize === '45') return 'cleared';
+            return 'conn';
         }
 
         // =========================================================================
-        // 4. ON CLICK: SELECT & OPEN MODAL INTERFACE (NO ZOOM)
+        // 6. SLOT CLICK & MODAL POPULATION
         // =========================================================================
-        let lastOccupiedKey = "SLOT-AB01-6A";
-
         function handleSlotClick(slotKey) {
             selectedSlotKey = slotKey;
 
-            // Highlight chosen slot
             document.querySelectorAll('.c.highlight').forEach(c => c.classList.remove('highlight'));
             document.querySelectorAll('.yard-block.highlighted-row').forEach(b => b.classList.remove('highlighted-row'));
 
@@ -758,10 +1018,8 @@
                 if (rowCard) rowCard.classList.add('highlighted-row');
             }
 
-            // Update sidebar info
             updateSidebarDetails(slotKey);
 
-            // Open either Container Modal or Empty Slot Modal
             const unit = containerStore[slotKey];
             if (unit) {
                 lastOccupiedKey = slotKey;
@@ -773,107 +1031,299 @@
 
         function updateSidebarDetails(slotKey) {
             const unit = containerStore[slotKey];
-            const el = document.getElementById(slotKey);
-            const rowStr = el ? el.getAttribute('data-row') : slotKey.substring(7, 9);
-            const tierStr = el ? el.getAttribute('data-tier') : slotKey.substring(10, 11);
-            const colStr = el ? el.getAttribute('data-col') : slotKey.substring(11, 12);
+            const parsed = parseSlotKey(slotKey);
 
-            document.getElementById('sideStack').innerText = STACK_NAME;
-            document.getElementById('sideRow').innerText = `AB-${rowStr}`;
+            const yard = parsed ? parsed.yardPrefix : activeYard.prefix;
+            const rowStr = parsed ? parsed.rowStr : "--";
+            const tierStr = parsed ? parsed.tier : "--";
+            const colStr = parsed ? parsed.col : "--";
+
+            document.getElementById('sideStack').innerText = yard;
+            document.getElementById('sideRow').innerText = `${yard}-${rowStr}`;
             document.getElementById('sideTier').innerText = `Tier ${tierStr}`;
             document.getElementById('sideCol').innerText = `Col ${colStr}`;
-            document.getElementById('sideBreadcrumb').innerText = `STACK: AB > ROW: ${rowStr} > TIER: ${tierStr} > COL: ${colStr}`;
-            document.getElementById('sidebarRowBadge').innerText = `ROW AB-${rowStr}`;
+            document.getElementById('sideBreadcrumb').innerText = `YARD: ${yard} > ROW: ${rowStr} > TIER: ${tierStr} > COL: ${colStr}`;
+            document.getElementById('sidebarRowBadge').innerText = `ROW ${yard}-${rowStr}`;
 
             if (unit) {
-                document.getElementById('sideContainerNo').innerText = unit.no;
-                document.getElementById('sideLineBadge').innerText = unit.line;
-                document.getElementById('sideIsoBadge').innerText = `${unit.iso} (${unit.size}ft ${unit.type})`;
-                document.getElementById('sideStatusPill').innerText = unit.status;
+                document.getElementById('sideContainerNo').innerText = unit.ctrNbr;
+                document.getElementById('sideIsoBadge').innerText = `${unit.ctrSize}ft ${unit.ctrType}`;
+                document.getElementById('sideLocationType').innerText = unit.currentLocationType || 'YARD';
+                document.getElementById('sideStatusPill').innerText = unit.status || 'DELIVERED';
                 document.getElementById('sideStatusPill').className = 'unit-status-pill ' + (unit.status === 'DELIVERED' ? 'conn' : 'alert');
-                document.getElementById('sideCategoryBadge').innerText = unit.cat;
-                document.getElementById('sideWeight').innerText = unit.tare;
-                document.getElementById('sideTicket').innerText = unit.ticket;
-                document.getElementById('sideHeight').innerText = `${unit.size}ft • ${unit.height === '96' ? "9'6\" HC" : "8'6\" Std"}`;
-                document.getElementById('sideVehicle').innerText = unit.vehicle || 'OUT';
-                document.getElementById('sideGateIn').innerText = unit.gateIn || '--';
-                document.getElementById('sideOperator').innerText = unit.opIn || '--';
-                document.getElementById('sideRemarks').innerText = unit.remarks || 'NORMAL';
+                document.getElementById('sideCategoryBadge').innerText = unit.category || 'COMMUNITY';
+                document.getElementById('sideTareWeight').innerText = `${unit.tareWeight || '--'} ${unit.tareWeightUnit || 'KG'}`;
+                document.getElementById('sideSafeWeight').innerText = `${unit.safeWeight || '--'} ${unit.safeWeightUnit || 'KG'}`;
+                document.getElementById('sideGrossWeight').innerText = `${unit.grossWeight || '--'} ${unit.grossWeightUnit || 'KG'}`;
+                document.getElementById('sideHeight').innerText = `${unit.ctrSize}ft • ${unit.ctrHeight === '96' ? "9'6\" HC" : "8'6\" Std"}`;
+                document.getElementById('sideVesselVoyage').innerText = `${unit.vesselCode || '--'} / ${unit.voyage || '--'}`;
+                document.getElementById('sideYardIn').innerText = unit.yardInTime || '--';
+                document.getElementById('sidePositionCode').innerText = unit.currentPosition || `${yard}-${rowStr}-${tierStr}${colStr}`;
             } else {
-                document.getElementById('sideContainerNo').innerText = "EMPTY SLOT";
-                document.getElementById('sideLineBadge').innerText = "VACANT";
+                document.getElementById('sideContainerNo').innerText = "VACANT SLOT";
                 document.getElementById('sideIsoBadge').innerText = "AVAILABLE";
+                document.getElementById('sideLocationType').innerText = "YARD";
                 document.getElementById('sideStatusPill').innerText = "VACANT";
                 document.getElementById('sideStatusPill').className = "unit-status-pill empty";
                 document.getElementById('sideCategoryBadge').innerText = "VACANT";
-                document.getElementById('sideWeight').innerText = "-- KG";
-                document.getElementById('sideTicket').innerText = "--";
+                document.getElementById('sideTareWeight').innerText = "-- KG";
+                document.getElementById('sideSafeWeight').innerText = "-- KG";
+                document.getElementById('sideGrossWeight').innerText = "-- KG";
                 document.getElementById('sideHeight').innerText = "--";
-                document.getElementById('sideVehicle').innerText = "--";
-                document.getElementById('sideGateIn').innerText = "--";
-                document.getElementById('sideOperator').innerText = "--";
-                document.getElementById('sideRemarks').innerText = "SLOT READY FOR INBOUND MOVE";
+                document.getElementById('sideVesselVoyage').innerText = "--";
+                document.getElementById('sideYardIn').innerText = "--";
+                document.getElementById('sidePositionCode').innerText = `${yard}-${rowStr}-${tierStr}${colStr} (VACANT)`;
             }
         }
 
-        function openSelectedContainerModal() {
+        async function openSelectedContainerModal() {
+            if (!selectedSlotKey || !containerStore[selectedSlotKey]) return;
             const unit = containerStore[selectedSlotKey];
-            const el = document.getElementById(selectedSlotKey);
-            const rowStr = el ? el.getAttribute('data-row') : selectedSlotKey.substring(7, 9);
-            const tierStr = el ? el.getAttribute('data-tier') : selectedSlotKey.substring(10, 11);
-            const colStr = el ? el.getAttribute('data-col') : selectedSlotKey.substring(11, 12);
+            const parsed = parseSlotKey(selectedSlotKey);
 
-            if (!unit) {
-                openEmptySlotModal(selectedSlotKey);
-                return;
-            }
-
-            // Populate Modal from Sir's table fields
-            document.getElementById('modalContainerNo').innerText = unit.no;
-            document.getElementById('modalLineBadge').innerText = unit.line;
-            document.getElementById('modalStatusBadge').innerText = unit.status;
+            document.getElementById('modalContainerNo').innerText = unit.ctrNbr;
+            document.getElementById('modalTypeBadge').innerText = `${unit.ctrSize}ft ${unit.ctrType}`;
+            document.getElementById('modalStatusBadge').innerText = unit.status || 'DELIVERED';
             document.getElementById('modalStatusBadge').className = 'unit-status-pill ' + (unit.status === 'DELIVERED' ? 'conn' : 'alert');
-            document.getElementById('modalLocationSubtitle').innerText = `Location: Stack AB • Row AB-${rowStr} • Tier ${tierStr} • Column ${colStr}`;
+            document.getElementById('modalLocationSubtitle').innerText = `Location: Yard ${parsed ? parsed.yardPrefix : activeYard.prefix} • Row ${parsed ? parsed.rowStr : '--'} • Tier ${parsed ? parsed.tier : '--'} • Col ${parsed ? parsed.col : '--'}`;
 
-            document.getElementById('modalIsoCode').innerText = `${unit.iso} (${unit.size}ft ${unit.type})`;
-            document.getElementById('modalHeight').innerText = `${unit.height === '96' ? "9'6\" High Cube" : "8'6\" Standard"}`;
-            document.getElementById('modalTareWeight').innerText = unit.tare;
-            document.getElementById('modalTicketNo').innerText = unit.ticket;
-            document.getElementById('modalCategory').innerText = unit.cat;
-            document.getElementById('modalVehicle').innerText = unit.vehicle || 'OUT';
-            document.getElementById('modalGateIn').innerText = unit.gateIn || '--';
-            document.getElementById('modalGateOut').innerText = unit.gateOut || '--';
-            document.getElementById('modalOperator').innerText = `${unit.opIn} (In) / ${unit.opOut} (Out)`;
-            document.getElementById('modalRemarks').innerText = unit.remarks || 'NORMAL';
+            document.getElementById('modalIsoCode').innerText = `${unit.ctrSize}ft ${unit.ctrType}`;
+            document.getElementById('modalHeight').innerText = `${unit.ctrHeight === '96' ? "9'6\" High Cube" : "8'6\" Standard"}`;
+            document.getElementById('modalTareWeight').innerText = `${unit.tareWeight || '--'} ${unit.tareWeightUnit || 'KG'}`;
+            document.getElementById('modalSafeWeight').innerText = `${unit.safeWeight || '--'} ${unit.safeWeightUnit || 'KG'}`;
+            document.getElementById('modalGrossWeight').innerText = `${unit.grossWeight || '--'} ${unit.grossWeightUnit || 'KG'}`;
+            document.getElementById('modalCategory').innerText = unit.category || 'COMMUNITY';
+            document.getElementById('modalLocationType').innerText = unit.currentLocationType || 'YARD';
+            document.getElementById('modalVesselVoyage').innerText = `${unit.vesselCode || '--'} / ${unit.voyage || '--'}`;
+            document.getElementById('modalGateIn').innerText = unit.yardInTime || '--';
+            document.getElementById('modalGateOut').innerText = unit.yardOutTime || '--';
 
-            // Setup Move section inside Modal
-            document.getElementById('modalCurrentSlotBadge').innerText = `Current: Row AB-${rowStr} • Tier ${tierStr} • Col ${colStr}`;
-            document.getElementById('modalTargetRow').value = rowStr;
-            document.getElementById('modalTargetTier').value = tierStr;
-            document.getElementById('modalTargetCol').value = colStr;
+            // Setup Target Move Section
+            document.getElementById('modalCurrentSlotBadge').innerText = `Current: Yard ${parsed ? parsed.yardPrefix : activeYard.prefix} • Row ${parsed ? parsed.rowStr : '--'} • Tier ${parsed ? parsed.tier : '--'} • Col ${parsed ? parsed.col : '--'}`;
 
-            previewTargetSlot();
+            // Populate Target Yard dropdown
+            const yardSelect = document.getElementById('modalTargetYard');
+            yardSelect.innerHTML = '';
+            yardList.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y.yardSlotName;
+                opt.innerText = y.yardSlotName;
+                if (y.yardSlotName === activeYard.name) opt.selected = true;
+                yardSelect.appendChild(opt);
+            });
+
+            onModalYardChanged();
 
             const modal = new bootstrap.Modal(document.getElementById('containerInfoModal'));
             modal.show();
+
+            // Fetch live CV details from Oracle Pkg_Front_End.Get_Cv_Details
+            try {
+                const cvRes = await fetch(`/api/yard/cv-details/${encodeURIComponent(unit.ctrNbr)}`);
+                const cvJson = await cvRes.json();
+                if (cvJson.status === 'OK' && cvJson.data) {
+                    const d = cvJson.data;
+                    unit.category = d.category || unit.category;
+                    unit.status = d.ctrStatus || unit.status;
+                    unit.grossWeight = d.grossWeight ? Number(d.grossWeight).toLocaleString() : unit.grossWeight;
+                    unit.grossWeightUnit = d.grossWeightUnit || unit.grossWeightUnit;
+                    unit.vesselCode = d.vesselCode || unit.vesselCode;
+                    unit.voyage = d.voyage || unit.voyage;
+                    unit.yardInTime = d.formattedInTime || unit.yardInTime;
+                    unit.yardOutTime = d.formattedOutTime || unit.yardOutTime;
+
+                    document.getElementById('modalGrossWeight').innerText = `${unit.grossWeight} ${unit.grossWeightUnit}`;
+                    document.getElementById('modalCategory').innerText = unit.category;
+                    document.getElementById('modalStatusBadge').innerText = unit.status;
+                    document.getElementById('modalVesselVoyage').innerText = `${unit.vesselCode} / ${unit.voyage}`;
+                    document.getElementById('modalGateIn').innerText = unit.yardInTime;
+                    document.getElementById('modalGateOut').innerText = unit.yardOutTime;
+
+                    updateSidebarDetails(selectedSlotKey);
+                }
+            } catch (err) {
+                console.log("Cv details fetch info:", err);
+            }
         }
 
+        function onModalYardChanged() {
+            const targetYardName = document.getElementById('modalTargetYard').value;
+            const targetYard = yardList.find(y => y.yardSlotName === targetYardName) || activeYard;
+
+            const rowSelect = document.getElementById('modalTargetRow');
+            rowSelect.innerHTML = '';
+            for (let r = 1; r <= (targetYard.stackRows || 14); r++) {
+                const rStr = r.toString().padStart(2, '0');
+                rowSelect.innerHTML += `<option value="${rStr}">Row ${rStr}</option>`;
+            }
+
+            const colSelect = document.getElementById('modalTargetCol');
+            colSelect.innerHTML = '';
+            const cols = getColsForYard(targetYard);
+            cols.forEach(c => {
+                colSelect.innerHTML += `<option value="${c}">Column ${c}</option>`;
+            });
+
+            onModalRowColChanged();
+        }
+
+        function onModalRowColChanged() {
+            const targetYardName = document.getElementById('modalTargetYard').value;
+            const targetYard = yardList.find(y => y.yardSlotName === targetYardName) || activeYard;
+            const cleanPrefix = targetYard.yardSlotName.replace('STACK-', '').replace('YARD-', '').replace(/[^A-Za-z0-9]/g, '');
+
+            const rowStr = document.getElementById('modalTargetRow').value;
+            const col = document.getElementById('modalTargetCol').value;
+
+            // Find next valid base stacking tier
+            const nextTier = getNextValidTierForColumn(cleanPrefix, rowStr, col, targetYard.yAxis);
+
+            const tierSelect = document.getElementById('modalTargetTier');
+            tierSelect.innerHTML = '';
+
+            for (let t = 1; t <= (targetYard.yAxis || 6); t++) {
+                const opt = document.createElement('option');
+                opt.value = t;
+                const slotKey = buildSlotKey(cleanPrefix, rowStr, t, col);
+                const isOccupied = !!containerStore[slotKey];
+
+                if (isOccupied) {
+                    opt.innerText = `Tier ${t} (Occupied by ${containerStore[slotKey].ctrNbr})`;
+                    opt.disabled = true;
+                } else if (t === nextTier) {
+                    opt.innerText = `Tier ${t} (Next Valid Base Tier)`;
+                    opt.selected = true;
+                } else if (nextTier && t > nextTier) {
+                    opt.innerText = `Tier ${t} (Floats in Air - Invalid)`;
+                    opt.disabled = true;
+                } else {
+                    opt.innerText = `Tier ${t}`;
+                }
+                tierSelect.appendChild(opt);
+            }
+
+            previewTargetSlot();
+        }
+
+        function previewTargetSlot() {
+            const targetYardName = document.getElementById('modalTargetYard').value;
+            const targetYard = yardList.find(y => y.yardSlotName === targetYardName) || activeYard;
+            const cleanPrefix = targetYard.yardSlotName.replace('STACK-', '').replace('YARD-', '').replace(/[^A-Za-z0-9]/g, '');
+
+            const rowStr = document.getElementById('modalTargetRow').value;
+            const col = document.getElementById('modalTargetCol').value;
+            const tier = parseInt(document.getElementById('modalTargetTier').value, 10);
+
+            const statusText = document.getElementById('modalTargetStatusText');
+            const btn = document.getElementById('btnApplyModalMove');
+
+            // Validate using Physical Stacking Rules
+            const val = validateTargetPlacement(selectedSlotKey, cleanPrefix, rowStr, tier, col);
+
+            if (!val.valid) {
+                statusText.className = 'fw-bold text-danger';
+                statusText.innerText = val.error;
+                btn.disabled = true;
+            } else {
+                statusText.className = 'fw-bold text-success';
+                statusText.innerText = `VALID: Ready to place at Tier ${tier} (Supported by base)`;
+                btn.disabled = false;
+            }
+        }
+
+        async function moveContainerFromModal() {
+            const pickCheck = validateCanPick(selectedSlotKey);
+            if (!pickCheck.allowed) {
+                showAppNotice("Cannot Move Container", pickCheck.error, "danger");
+                return;
+            }
+
+            const targetYardName = document.getElementById('modalTargetYard').value;
+            const targetYard = yardList.find(y => y.yardSlotName === targetYardName) || activeYard;
+            const cleanPrefix = targetYard.yardSlotName.replace('STACK-', '').replace('YARD-', '').replace(/[^A-Za-z0-9]/g, '');
+
+            const rowStr = document.getElementById('modalTargetRow').value;
+            const col = document.getElementById('modalTargetCol').value;
+            const tier = parseInt(document.getElementById('modalTargetTier').value, 10);
+
+            const val = validateTargetPlacement(selectedSlotKey, cleanPrefix, rowStr, tier, col);
+            if (!val.valid) {
+                showAppNotice("Invalid Move Position", val.error, "danger");
+                return;
+            }
+
+            const targetKey = buildSlotKey(cleanPrefix, rowStr, tier, col);
+            const unit = containerStore[selectedSlotKey];
+
+            // Close modal
+            const modalEl = document.getElementById('containerInfoModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            await executeSlotMove(selectedSlotKey, targetKey, cleanPrefix, rowStr, tier, col);
+
+            showAppNotice(
+                "Container Relocated Successfully",
+                `Container ${unit.ctrNbr} moved to Yard ${targetYardName}, Row ${rowStr}, Tier ${tier}, Col ${col}.`,
+                "success"
+            );
+        }
+
+        // =========================================================================
+        // 7. EMPTY SLOT CLICK MODAL
+        // =========================================================================
         function openEmptySlotModal(slotKey) {
-            const el = document.getElementById(slotKey);
-            const rowStr = el ? el.getAttribute('data-row') : slotKey.substring(7, 9);
-            const tierStr = el ? el.getAttribute('data-tier') : slotKey.substring(10, 11);
-            const colStr = el ? el.getAttribute('data-col') : slotKey.substring(11, 12);
+            const parsed = parseSlotKey(slotKey);
+            const yard = parsed ? parsed.yardPrefix : activeYard.prefix;
+            const rowStr = parsed ? parsed.rowStr : "--";
+            const tier = parsed ? parsed.tier : 1;
+            const col = parsed ? parsed.col : "--";
 
-            document.getElementById('emptySlotModalTitle').innerText = `Empty Slot: Row AB-${rowStr}`;
-            document.getElementById('emptySlotModalCoords').innerText = `Tier ${tierStr} • Column ${colStr} • Vacant Slot`;
-            document.getElementById('emptySlotLocText').innerText = `Stack AB • Row AB-${rowStr} • Tier ${tierStr} • Col ${colStr}`;
+            document.getElementById('emptySlotModalTitle').innerText = `Empty Slot: Row ${yard}-${rowStr}`;
+            document.getElementById('emptySlotModalCoords').innerText = `Tier ${tier} • Column ${col} • Vacant Stacking Space`;
+            document.getElementById('emptySlotLocText').innerText = `Yard ${yard} • Row ${rowStr} • Tier ${tier} • Col ${col}`;
 
-            // Check if there is an active container candidate to move here
+            const foundationText = document.getElementById('emptySlotFoundationText');
+            if (tier === 1) {
+                foundationText.innerText = "Tier 1: Solid Base (Pavement Level)";
+                foundationText.className = "small fw-bold text-success";
+            } else {
+                const belowKey = buildSlotKey(yard, rowStr, tier - 1, col);
+                const belowUnit = containerStore[belowKey];
+                if (belowUnit) {
+                    foundationText.innerText = `Solid: Resting on Tier ${tier - 1} (${belowUnit.ctrNbr})`;
+                    foundationText.className = "small fw-bold text-success";
+                } else {
+                    foundationText.innerText = `Suspended in Air: Tier ${tier - 1} is empty! Cannot stack here.`;
+                    foundationText.className = "small fw-bold text-danger";
+                }
+            }
+
             const moveBox = document.getElementById('emptySlotMoveBox');
+            const alertBox = document.getElementById('emptySlotValidationAlert');
+            const confirmBtn = document.getElementById('btnConfirmEmptyMove');
             const candidateUnit = containerStore[lastOccupiedKey];
+
             if (candidateUnit && lastOccupiedKey !== slotKey) {
-                document.getElementById('emptySlotCandidateNo').innerText = candidateUnit.no;
+                document.getElementById('emptySlotCandidateNo').innerText = candidateUnit.ctrNbr;
                 moveBox.style.display = 'block';
+
+                // Validate pick & target
+                const pickCheck = validateCanPick(lastOccupiedKey);
+                const targetCheck = validateTargetPlacement(lastOccupiedKey, yard, rowStr, tier, col);
+
+                if (!pickCheck.allowed) {
+                    alertBox.style.display = 'block';
+                    alertBox.innerText = pickCheck.error;
+                    confirmBtn.disabled = true;
+                } else if (!targetCheck.valid) {
+                    alertBox.style.display = 'block';
+                    alertBox.innerText = targetCheck.error;
+                    confirmBtn.disabled = true;
+                } else {
+                    alertBox.style.display = 'none';
+                    confirmBtn.disabled = false;
+                }
             } else {
                 moveBox.style.display = 'none';
             }
@@ -882,118 +1332,67 @@
             modal.show();
         }
 
-        function confirmMoveToEmptySlot() {
+        async function confirmMoveToEmptySlot() {
             const modalEl = document.getElementById('emptySlotModal');
             const modal = bootstrap.Modal.getInstance(modalEl);
             if (modal) modal.hide();
 
-            const candidateUnit = containerStore[lastOccupiedKey];
-            if (candidateUnit && lastOccupiedKey !== selectedSlotKey) {
-                executeSlotMove(lastOccupiedKey, selectedSlotKey);
-                showAppNotice("Container Relocated", `Container ${candidateUnit.no} moved successfully to ${selectedSlotKey.replace('SLOT-AB', 'Row AB-')}.`, "success");
-            }
+            const parsed = parseSlotKey(selectedSlotKey);
+            if (!parsed) return;
+
+            const unit = containerStore[lastOccupiedKey];
+            await executeSlotMove(lastOccupiedKey, selectedSlotKey, parsed.yardPrefix, parsed.rowStr, parsed.tier, parsed.col);
+
+            showAppNotice(
+                "Container Relocated Successfully",
+                `Container ${unit?.ctrNbr || ''} moved to Row ${parsed.yardPrefix}-${parsed.rowStr}, Tier ${parsed.tier}, Col ${parsed.col}.`,
+                "success"
+            );
         }
 
         // =========================================================================
-        // 5. CHANGE POSITION / MOVE CONTAINER (VIA MODAL OR DRAG)
+        // 8. EXECUTE SLOT MOVE & ORACLE DATABASE PERSISTENCE
         // =========================================================================
-        function previewTargetSlot() {
-            const targetRow = document.getElementById('modalTargetRow').value;
-            const targetTier = document.getElementById('modalTargetTier').value;
-            const targetCol = document.getElementById('modalTargetCol').value;
-            const targetKey = `SLOT-${STACK_NAME}${targetRow}-${targetTier}${targetCol}`;
+        async function executeSlotMove(sourceKey, targetKey, targetYardPrefix, targetRowStr, targetTier, targetCol) {
+            const unit = containerStore[sourceKey];
+            if (!unit) return;
 
-            const statusText = document.getElementById('modalTargetStatusText');
-
-            if (targetKey === selectedSlotKey) {
-                statusText.className = 'text-muted';
-                statusText.innerText = 'Same as current slot';
-                return;
-            }
-
-            const targetUnit = containerStore[targetKey];
-            if (targetUnit) {
-                statusText.className = 'text-warning';
-                statusText.innerText = `Occupied by ${targetUnit.no} (${targetUnit.line}). Will Swap.`;
-            } else {
-                statusText.className = 'text-success';
-                statusText.innerText = 'EMPTY / AVAILABLE (Direct Move)';
-            }
-        }
-
-        function moveContainerFromModal() {
-            const targetRow = document.getElementById('modalTargetRow').value;
-            const targetTier = document.getElementById('modalTargetTier').value;
-            const targetCol = document.getElementById('modalTargetCol').value;
-            const targetKey = `SLOT-${STACK_NAME}${targetRow}-${targetTier}${targetCol}`;
-
-            if (targetKey === selectedSlotKey) {
-                showAppNotice("Invalid Target Position", "Target position is identical to current position. Please select a different Row, Tier or Column.", "warning");
-                return;
-            }
-
-            const movedUnit = containerStore[selectedSlotKey];
-
-            // Execute move
-            executeSlotMove(selectedSlotKey, targetKey);
-
-            // Hide modal
-            const modalEl = document.getElementById('containerInfoModal');
-            const modal = bootstrap.Modal.getInstance(modalEl);
-            if (modal) modal.hide();
-
-            showAppNotice("Container Relocated", `Container ${movedUnit?.no || ''} moved to Row AB-${targetRow}, Tier ${targetTier}, Col ${targetCol}.`, "success");
-        }
-
-        function executeSlotMove(sourceKey, targetKey) {
-            const sourceUnit = containerStore[sourceKey];
-            if (!sourceUnit) return;
-
-            const targetUnit = containerStore[targetKey];
-
-            // Parse target row, tier, col
-            const targetEl = document.getElementById(targetKey);
-            const targetRow = targetEl ? targetEl.getAttribute('data-row') : targetKey.substring(7, 9);
-            const targetTier = targetEl ? targetEl.getAttribute('data-tier') : targetKey.substring(10, 11);
-            const targetCol = targetEl ? targetEl.getAttribute('data-col') : targetKey.substring(11, 12);
-
-            // Move source unit
+            // Remove from source slot
             delete containerStore[sourceKey];
-            sourceUnit.slotKey = targetKey;
-            sourceUnit.row = targetRow;
-            sourceUnit.tier = targetTier;
-            sourceUnit.col = targetCol;
-            containerStore[targetKey] = sourceUnit;
 
-            // Swap if target was occupied
-            if (targetUnit) {
-                const sourceEl = document.getElementById(sourceKey);
-                targetUnit.slotKey = sourceKey;
-                targetUnit.row = sourceEl ? sourceEl.getAttribute('data-row') : sourceKey.substring(7, 9);
-                targetUnit.tier = sourceEl ? sourceEl.getAttribute('data-tier') : sourceKey.substring(10, 11);
-                targetUnit.col = sourceEl ? sourceEl.getAttribute('data-col') : sourceKey.substring(11, 12);
-                containerStore[sourceKey] = targetUnit;
-            }
+            // Re-assign into target slot
+            unit.slotKey = targetKey;
+            unit.currentPosition = `${targetYardPrefix}-${targetRowStr}-${targetTier}${targetCol}`;
+            containerStore[targetKey] = unit;
 
-            // Refresh DOM cells
+            // Refresh DOM representations
             refreshSlotDOM(sourceKey);
             refreshSlotDOM(targetKey);
 
-            // Select new position
             selectedSlotKey = targetKey;
             lastOccupiedKey = targetKey;
             updateSidebarDetails(targetKey);
 
-            // Apply highlight
             document.querySelectorAll('.c.highlight').forEach(c => c.classList.remove('highlight'));
             const newEl = document.getElementById(targetKey);
             if (newEl) newEl.classList.add('highlight');
 
             updateCounters();
 
-            // Broadcast via SignalR
-            if (connection && connection.state === signalR.HubConnectionState.Connected) {
-                connection.invoke("RelocateContainer", sourceUnit.no, sourceKey, targetKey).catch(err => console.log(err));
+            // Persist to Oracle Database Ctr2 table & broadcast via SignalR
+            try {
+                await fetch('/api/yard/containers/relocate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ctrNbr: unit.ctrNbr,
+                        newPosition: unit.currentPosition,
+                        fromSlot: sourceKey,
+                        toSlot: targetKey
+                    })
+                });
+            } catch (err) {
+                console.error("Failed to persist container relocation to Oracle DB:", err);
             }
         }
 
@@ -1011,19 +1410,33 @@
             const t = el.getAttribute('data-tier');
             const c = el.getAttribute('data-col');
             const row = el.getAttribute('data-row');
+            const y = el.getAttribute('data-yard') || activeYard.prefix;
             const tooltipText = isOccupied ? 
-                `${unit.no} | ${unit.line} (${unit.size}ft) | ${unit.status} | Tier ${t} Col ${c}` : 
-                `Row AB-${row} • Tier ${t} • Col ${c} (EMPTY SLOT)`;
+                `${unit.ctrNbr} | ${unit.ctrSize}ft ${unit.ctrType} | Tier ${t} Col ${c}` : 
+                `Row ${y}-${row} • Tier ${t} • Col ${c} (VACANT SLOT)`;
             el.setAttribute('data-tooltip', tooltipText);
         }
 
-        // Enable Drag Move on Yard directly
+        // =========================================================================
+        // 9. DRAG AND DROP VALIDATION (PHYSICS ENFORCED)
+        // =========================================================================
         function enableYardDragging() {
+            if (!selectedSlotKey || !containerStore[selectedSlotKey]) {
+                showAppNotice("Selection Required", "Please select an occupied container first before dragging.", "warning");
+                return;
+            }
+
+            const pickCheck = validateCanPick(selectedSlotKey);
+            if (!pickCheck.allowed) {
+                showAppNotice("Cannot Drag Container", pickCheck.error, "danger");
+                return;
+            }
+
             isDraggingEnabled = true;
             document.getElementById('dragStatusBadge').className = 'badge bg-warning text-dark';
             document.getElementById('dragStatusBadge').innerText = 'Drag Mode Active';
             const unit = containerStore[selectedSlotKey];
-            showAppNotice("Drag Mode Active", `You can now DRAG container ${unit?.no || ''} and DROP it onto any other slot in the yard.`, "info");
+            showAppNotice("Drag Mode Active", `You can now DRAG container ${unit.ctrNbr} and DROP it onto any vacant, base-supported slot in the yard.`, "info");
         }
 
         function enableYardDraggingAndCloseModal() {
@@ -1033,28 +1446,14 @@
             enableYardDragging();
         }
 
-        // Universal App Notice Modal (Replaces browser alert/prompt)
-        function showAppNotice(title, message, type = 'info') {
-            document.getElementById('noticeTitle').innerText = title;
-            document.getElementById('noticeMessage').innerText = message;
-            const icon = document.getElementById('noticeIcon');
-
-            if (type === 'success') {
-                icon.className = 'bi bi-check-circle-fill text-success fs-5';
-            } else if (type === 'warning') {
-                icon.className = 'bi bi-exclamation-triangle-fill text-warning fs-5';
-            } else if (type === 'danger') {
-                icon.className = 'bi bi-x-circle-fill text-danger fs-5';
-            } else {
-                icon.className = 'bi bi-info-circle-fill text-info fs-5';
+        function handleContainerDragStart(e, slotKey) {
+            const pickCheck = validateCanPick(slotKey);
+            if (!pickCheck.allowed) {
+                e.preventDefault();
+                showAppNotice("Cannot Pick Container", pickCheck.error, "danger");
+                return;
             }
 
-            const modal = new bootstrap.Modal(document.getElementById('appNoticeModal'));
-            modal.show();
-        }
-
-        // Drag and Drop Container Handlers
-        function handleContainerDragStart(e, slotKey) {
             draggedSlotKey = slotKey;
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', slotKey);
@@ -1076,7 +1475,7 @@
             e.stopPropagation();
         }
 
-        function handleContainerDrop(e, targetSlotKey) {
+        async function handleContainerDrop(e, targetSlotKey) {
             e.preventDefault();
             e.stopPropagation();
             e.currentTarget.classList.remove('drop-target-hover');
@@ -1088,7 +1487,27 @@
 
             const src = draggedSlotKey;
             cleanupContainerDrag();
-            executeSlotMove(src, targetSlotKey);
+
+            const targetEl = document.getElementById(targetSlotKey);
+            const yardPrefix = targetEl ? targetEl.getAttribute('data-yard') : activeYard.prefix;
+            const rowStr = targetEl ? targetEl.getAttribute('data-row') : targetSlotKey.substring(7, 9);
+            const tier = parseInt(targetEl ? targetEl.getAttribute('data-tier') : targetSlotKey.substring(10, 11), 10);
+            const col = targetEl ? targetEl.getAttribute('data-col') : targetSlotKey.substring(11, 12);
+
+            const val = validateTargetPlacement(src, yardPrefix, rowStr, tier, col);
+            if (!val.valid) {
+                showAppNotice("Invalid Drop Position", val.error, "danger");
+                return;
+            }
+
+            const unit = containerStore[src];
+            await executeSlotMove(src, targetSlotKey, yardPrefix, rowStr, tier, col);
+
+            showAppNotice(
+                "Container Relocated Successfully",
+                `Container ${unit.ctrNbr} moved to Row ${yardPrefix}-${rowStr}, Tier ${tier}, Col ${col}.`,
+                "success"
+            );
         }
 
         function cleanupContainerDrag() {
@@ -1106,7 +1525,7 @@
         }
 
         // =========================================================================
-        // 6. ROW REORDERING (DRAG & DROP ROWS)
+        // 10. ROW REORDERING (DRAG & DROP)
         // =========================================================================
         let draggedRowCard = null;
         function attachRowDragEvents(rowEl) {
@@ -1149,7 +1568,7 @@
                 if (fromIdx !== -1 && toIdx !== -1) {
                     rowSequence.splice(fromIdx, 1);
                     rowSequence.splice(toIdx, 0, fromRow);
-                    localStorage.setItem('yard_row_sequence', JSON.stringify(rowSequence));
+                    localStorage.setItem(`yard_row_seq_${activeYard.name}`, JSON.stringify(rowSequence));
                     buildYard();
                 }
             });
@@ -1163,18 +1582,12 @@
 
             rowSequence.splice(idx, 1);
             rowSequence.splice(newIdx, 0, rowStr);
-            localStorage.setItem('yard_row_sequence', JSON.stringify(rowSequence));
-            buildYard();
-        }
-
-        function resetRowSequence() {
-            localStorage.removeItem('yard_row_sequence');
-            initRowSequence();
+            localStorage.setItem(`yard_row_seq_${activeYard.name}`, JSON.stringify(rowSequence));
             buildYard();
         }
 
         // =========================================================================
-        // 7. SEARCH, FILTERS & ROW NAVIGATION
+        // 11. SEARCH & FILTERS
         // =========================================================================
         function handleSearch(query) {
             query = query.trim().toUpperCase();
@@ -1184,16 +1597,14 @@
                 return;
             }
 
-            // Direct match on container no
             for (const key in containerStore) {
                 const u = containerStore[key];
-                if (u.no.includes(query)) {
+                if (u.ctrNbr.toUpperCase().includes(query)) {
                     handleSlotClick(key);
                     return;
                 }
             }
 
-            // Filter row blocks by matching text
             document.querySelectorAll('.yard-block').forEach(block => {
                 const match = block.innerHTML.toUpperCase().includes(query);
                 block.style.display = match ? '' : 'none';
@@ -1232,11 +1643,11 @@
                 } else if (filterType === 'empty') {
                     cell.style.opacity = cell.classList.contains('empty') ? '1' : '0.12';
                 } else if (filterType === '20') {
-                    cell.style.opacity = (u && u.size === '20') ? '1' : '0.12';
+                    cell.style.opacity = (u && u.ctrSize === '20') ? '1' : '0.12';
                 } else if (filterType === '40') {
-                    cell.style.opacity = (u && (u.size === '40' || u.size === '45')) ? '1' : '0.12';
+                    cell.style.opacity = (u && (u.ctrSize === '40' || u.ctrSize === '45')) ? '1' : '0.12';
                 } else if (filterType === 'yard') {
-                    cell.style.opacity = (u && (u.cat === 'YARD' || u.status === 'QFS')) ? '1' : '0.12';
+                    cell.style.opacity = (u && (u.currentLocationType === 'YARD')) ? '1' : '0.12';
                 } else if (filterType === 'delivered') {
                     cell.style.opacity = (u && u.status === 'DELIVERED') ? '1' : '0.12';
                 }
@@ -1244,37 +1655,65 @@
         }
 
         function updateCounters() {
-            const total = TOTAL_ROWS * 36;
-            const occupied = Object.keys(containerStore).length;
-            const empty = total - occupied;
-            const pct = ((occupied / total) * 100).toFixed(1);
+            const cols = getColsForYard(activeYard);
+            const total = activeYard.stackRows * cols.length * activeYard.yAxis;
 
+            let occupied = 0;
             let special = 0;
+
             for (const k in containerStore) {
                 const u = containerStore[k];
-                if ((u.remarks && u.remarks.includes('DENTED')) || u.cat === 'YARD') special++;
+                const p = parseSlotKey(k);
+                if (p && p.yardPrefix === activeYard.prefix) {
+                    occupied++;
+                    if (u.currentLocationType === 'TRUCK' || u.status === 'HAZMAT') special++;
+                }
             }
 
+            const empty = Math.max(0, total - occupied);
+            const pct = total > 0 ? ((occupied / total) * 100).toFixed(1) : 0;
+
+            document.getElementById('kpiCapacityLabel').innerText = `${activeYard.name} CAPACITY`;
             document.getElementById('kpiCapacity').innerText = total;
+            document.getElementById('kpiCapacitySub').innerText = `${activeYard.stackRows} Rows × ${cols.length * activeYard.yAxis} Slots`;
             document.getElementById('kpiOccupied').innerText = occupied.toString().padStart(2, '0');
             document.getElementById('kpiEmpty').innerText = empty.toString().padStart(2, '0');
             document.getElementById('kpiOccupancy').innerText = `${pct}%`;
             document.getElementById('kpiSpecial').innerText = special.toString().padStart(2, '0');
-            document.getElementById('filterAllCount').innerText = total;
+            document.getElementById('filterAllCount').innerText = occupied;
 
-            for (let r = 1; r <= TOTAL_ROWS; r++) {
+            for (let r = 1; r <= activeYard.stackRows; r++) {
                 const rowStr = r.toString().padStart(2, '0');
-                const rowEl = document.getElementById(`ROW-${STACK_NAME}-${rowStr}`);
+                const rowEl = document.getElementById(`ROW-${activeYard.prefix}-${rowStr}`);
                 if (rowEl) {
                     const loaded = rowEl.querySelectorAll('.c:not(.empty)').length;
                     const s = document.getElementById(`stats-${rowStr}`);
-                    if (s) s.innerText = `${loaded} / 36`;
+                    if (s) s.innerText = `${loaded} / ${cols.length * activeYard.yAxis}`;
                 }
             }
         }
 
+        function showAppNotice(title, message, type = 'info') {
+            document.getElementById('noticeTitle').innerText = title;
+            document.getElementById('noticeMessage').innerText = message;
+            const icon = document.getElementById('noticeIcon');
+
+            if (type === 'success') {
+                icon.className = 'bi bi-check-circle-fill text-success fs-5';
+            } else if (type === 'warning') {
+                icon.className = 'bi bi-exclamation-triangle-fill text-warning fs-5';
+            } else if (type === 'danger') {
+                icon.className = 'bi bi-x-circle-fill text-danger fs-5';
+            } else {
+                icon.className = 'bi bi-info-circle-fill text-info fs-5';
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('appNoticeModal'));
+            modal.show();
+        }
+
         // =========================================================================
-        // 8. SIGNALR REAL-TIME SYNC
+        // 12. SIGNALR REAL-TIME SYNC
         // =========================================================================
         const connection = new signalR.HubConnectionBuilder()
             .withUrl("/yardHub")
@@ -1282,8 +1721,147 @@
             .build();
 
         connection.on("ContainerRelocated", function (containerId, fromSlot, toSlot) {
-            executeSlotMove(fromSlot, toSlot);
+            const parsed = parseSlotKey(toSlot);
+            if (parsed) {
+                executeSlotMove(fromSlot, toSlot, parsed.yardPrefix, parsed.rowStr, parsed.tier, parsed.col);
+            }
         });
+
+        connection.on("YardSlotCreated", function(slot) {
+            yardList.unshift(slot);
+            const yardSelect = document.getElementById('activeYardSelect');
+            if (yardSelect) {
+                const opt = document.createElement('option');
+                opt.value = slot.yardSlotName;
+                opt.innerText = `${slot.yardSlotName} (${slot.stackRows || 14} Rows)`;
+                yardSelect.appendChild(opt);
+            }
+        });
+
+        connection.on("YardSlotUpdated", function(slot) {
+            const idx = yardList.findIndex(y => y.useq === slot.useq || y.yardSlotName === slot.yardSlotName);
+            if (idx !== -1) yardList[idx] = slot;
+            if (activeYard.name === slot.yardSlotName) {
+                setActiveYardByName(slot.yardSlotName);
+                buildYard();
+            }
+        });
+
+        connection.on("YardSlotDeleted", function(useq) {
+            yardList = yardList.filter(y => y.useq !== useq);
+            if (yardList.length > 0 && activeYard.name === yardList[0].yardSlotName) {
+                setActiveYardByName(yardList[0].yardSlotName);
+                buildYard();
+            }
+        });
+
+        function showActiveMqToast(title, body, isMatch = true) {
+            const container = document.getElementById('activemqToastContainer');
+            if (!container) return;
+            const toastId = 'toast_' + Date.now();
+            const borderColor = isMatch ? '#00e5ff' : '#f59e0b';
+            const badgeColor = isMatch ? '#00e5ff' : '#f59e0b';
+            const badgeText = isMatch ? 'ACTIVEMQ LIVE BROKER' : 'ACTIVEMQ TELEMETRY';
+
+            const toastHtml = `
+                <div id="${toastId}" class="toast show mb-2 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" 
+                     style="background: #0f172a; border: 2px solid ${borderColor}; border-radius: 8px; min-width: 340px; max-width: 420px; pointer-events: auto; animation: slideInRight 0.3s ease;">
+                    <div class="toast-header d-flex justify-content-between align-items-center py-2 px-3" 
+                         style="background: #1e293b; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="spinner-grow spinner-grow-sm" style="color: ${badgeColor};" role="status"></span>
+                            <span class="font-monospace fw-bold" style="color: ${badgeColor}; font-size: 0.8rem; letter-spacing: 0.5px;">${badgeText}</span>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white btn-sm" onclick="document.getElementById('${toastId}').remove()"></button>
+                    </div>
+                    <div class="toast-body p-3">
+                        <div class="fw-bold mb-1" style="color: #f8fafc; font-size: 0.95rem;">${title}</div>
+                        <div class="font-monospace small" style="color: #94a3b8; line-height: 1.4;">${body}</div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', toastHtml);
+            setTimeout(() => {
+                const el = document.getElementById(toastId);
+                if (el) el.remove();
+            }, 8000);
+        }
+
+        // Live telemetry updates coming from ActiveMQ broker via ReeferMqService
+        connection.on("UpdateContainer", function (id, type, status, line, weight, category) {
+            console.log("%c⚡ [ActiveMQ Live Message Received]", "background: #00e5ff; color: #000; font-weight: bold; padding: 4px 8px; border-radius: 4px;", { id, type, status, line, weight, category });
+
+            let foundKey = null;
+            const targetId = (id || '').trim().toUpperCase();
+
+            for (const key in containerStore) {
+                const u = containerStore[key];
+                if (u && u.ctrNbr && u.ctrNbr.trim().toUpperCase() === targetId) {
+                    foundKey = key;
+                    if (type) u.ctrType = type;
+                    if (status) u.status = status;
+                    if (weight) u.grossWeight = weight;
+                    if (line) u.vesselCode = line;
+                    if (category) u.category = category;
+
+                    refreshSlotDOM(key);
+                    if (selectedSlotKey === key) {
+                        updateSidebarDetails(key);
+                    }
+                    break;
+                }
+            }
+
+            if (foundKey) {
+                // Focus & glow highlight the slot
+                const el = document.getElementById(foundKey);
+                if (el) {
+                    el.classList.add('highlight');
+                    el.style.boxShadow = '0 0 25px #00e5ff';
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => {
+                        if (el) el.style.boxShadow = '';
+                    }, 5000);
+                }
+                handleSlotClick(foundKey);
+
+                showActiveMqToast(
+                    `Container Synced: ${id}`,
+                    `Assigned Slot: <b class="text-white">${foundKey.replace('SLOT-', '')}</b><br/>Status: <span class="badge bg-danger">${status}</span> &bull; Type: <span class="badge bg-info text-dark">${type}</span><br/>Weight: ${weight} &bull; Line: ${line}`,
+                    true
+                );
+            } else {
+                showActiveMqToast(
+                    `ActiveMQ Telemetry Received`,
+                    `Target: <b class="text-white">${id}</b><br/>Status: ${status} &bull; Type: ${type} &bull; Weight: ${weight}<br/><i class="text-warning">Telemetry ingested (Not currently loaded in active yard view)</i>`,
+                    false
+                );
+            }
+        });
+
+        async function triggerTestActiveMq() {
+            try {
+                // Find currently selected container or first container on screen to demonstrate instant live update
+                let targetCtr = "MEDU5128574";
+                if (selectedSlotKey && containerStore[selectedSlotKey]) {
+                    targetCtr = containerStore[selectedSlotKey].ctrNbr;
+                } else {
+                    const firstKey = Object.keys(containerStore)[0];
+                    if (firstKey && containerStore[firstKey]) targetCtr = containerStore[firstKey].ctrNbr;
+                }
+
+                showActiveMqToast("Sending Telemetry...", `Dispatching test telemetry for container <b>${targetCtr}</b> to ActiveMQ queue...`, true);
+
+                const res = await fetch(`/api/yard/test-mq?ctrNbr=${encodeURIComponent(targetCtr)}&status=HAZMAT&type=40RF%20Reefer`, {
+                    method: 'POST'
+                });
+                const json = await res.json();
+                console.log("Test ActiveMQ response:", json);
+            } catch (err) {
+                console.error("Test ActiveMQ failed:", err);
+                showActiveMqToast("Test Failed", `Could not connect to test endpoint: ${err.message}`, false);
+            }
+        }
 
         connection.start()
             .then(() => {
@@ -1299,7 +1877,7 @@
             document.getElementById('clock').innerText = new Date().toLocaleTimeString();
         }, 1000);
 
-        // Initial Build
-        buildYard();
+        // Initialize application on load
+        loadYardsAndContainers();
     </script>
 }

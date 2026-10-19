@@ -1,11 +1,12 @@
 using ReeferSystem.Hubs;
+using ReeferSystem.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddSignalR();
-builder.Services.AddHostedService<MqTestProducer>();
+builder.Services.AddScoped<IOracleYardService, OracleYardService>();
 builder.Services.AddHostedService<ReeferMqService>();
 
 var app = builder.Build();
